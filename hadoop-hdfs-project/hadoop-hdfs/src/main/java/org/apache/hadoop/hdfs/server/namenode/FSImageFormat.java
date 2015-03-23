@@ -17,7 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import static org.apache.hadoop.util.Time.now;
+import static org.apache.hadoop.util.Time.monotonicNow;
 
 import java.io.DataInput;
 import java.io.DataInputStream;
@@ -309,7 +309,7 @@ public class FSImageFormat {
       StartupProgress prog = NameNode.getStartupProgress();
       Step step = new Step(StepType.INODES);
       prog.beginStep(Phase.LOADING_FSIMAGE, step);
-      long startTime = now();
+      long startTime = monotonicNow();
 
       //
       // Load in bits
@@ -441,15 +441,16 @@ public class FSImageFormat {
       imgDigest = new MD5Hash(digester.digest());
       loaded = true;
       
-      LOG.info("Image file " + curFile + " of size " + curFile.length() +
-          " bytes loaded in " + (now() - startTime)/1000 + " seconds.");
+      LOG.info("Image file " + curFile + " of size " + curFile.length()
+          + " bytes loaded in " + (monotonicNow() - startTime) / 1000
+          + " seconds.");
     }
 
   /** Update the root node's attributes */
   private void updateRootAttr(INodeWithAdditionalFields root) {                                                           
     final QuotaCounts q = root.getQuotaCounts();
     final long nsQuota = q.getNameSpace();
-    final long dsQuota = q.getDiskSpace();
+    final long dsQuota = q.getStorageSpace();
     FSDirectory fsDir = namesystem.dir;
     if (nsQuota != -1 || dsQuota != -1) {
       fsDir.rootDir.getDirectoryWithQuotaFeature().setQuota(nsQuota, dsQuota);
@@ -824,7 +825,7 @@ public class FSImageFormat {
           permissions, modificationTime);
       if (nsQuota >= 0 || dsQuota >= 0) {
         dir.addDirectoryWithQuotaFeature(new DirectoryWithQuotaFeature.Builder().
-            nameSpaceQuota(nsQuota).spaceQuota(dsQuota).build());
+            nameSpaceQuota(nsQuota).storageSpaceQuota(dsQuota).build());
       }
       if (withSnapshot) {
         dir.addSnapshotFeature(null);
@@ -905,7 +906,10 @@ public class FSImageFormat {
       final PermissionStatus permissions = PermissionStatus.read(in);
       final long modificationTime = in.readLong();
       
-      //read quotas
+      // Read quotas: quota by storage type does not need to be processed below.
+      // It is handled only in protobuf based FsImagePBINode class for newer
+      // fsImages. Tools using this class such as legacy-mode of offline image viewer
+      // should only load legacy FSImages without newer features.
       final long nsQuota = in.readLong();
       final long dsQuota = in.readLong();
 
@@ -1237,7 +1241,7 @@ public class FSImageFormat {
       prog.beginStep(Phase.SAVING_CHECKPOINT, step);
       prog.setTotal(Phase.SAVING_CHECKPOINT, step, numINodes);
       Counter counter = prog.getCounter(Phase.SAVING_CHECKPOINT, step);
-      long startTime = now();
+      long startTime = monotonicNow();
       //
       // Write out data
       //
@@ -1305,8 +1309,9 @@ public class FSImageFormat {
       // set md5 of the saved image
       savedDigest = new MD5Hash(digester.digest());
 
-      LOG.info("Image file " + newFile + " of size " + newFile.length() +
-          " bytes saved in " + (now() - startTime)/1000 + " seconds.");
+      LOG.info("Image file " + newFile + " of size " + newFile.length()
+          + " bytes saved in " + (monotonicNow() - startTime) / 1000
+          + " seconds.");
     }
 
     /**

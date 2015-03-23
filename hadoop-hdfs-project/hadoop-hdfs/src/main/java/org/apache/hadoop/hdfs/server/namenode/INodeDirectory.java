@@ -26,8 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.fs.PathIsNotDirectoryException;
-import org.apache.hadoop.fs.XAttr;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.fs.XAttr;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
@@ -37,7 +38,6 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectorySnapshottableFea
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectoryWithSnapshotFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectoryWithSnapshotFeature.DirectoryDiffList;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
-import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.hdfs.util.Diff.ListType;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
@@ -137,14 +137,14 @@ public class INodeDirectory extends INodeWithAdditionalFields
         BlockStoragePolicySuite.ID_UNSPECIFIED;
   }
 
-  void setQuota(BlockStoragePolicySuite bsps, long nsQuota, long dsQuota, StorageType type) {
+  void setQuota(BlockStoragePolicySuite bsps, long nsQuota, long ssQuota, StorageType type) {
     DirectoryWithQuotaFeature quota = getDirectoryWithQuotaFeature();
     if (quota != null) {
       // already has quota; so set the quota to the new values
       if (type != null) {
-        quota.setQuota(dsQuota, type);
+        quota.setQuota(ssQuota, type);
       } else {
-        quota.setQuota(nsQuota, dsQuota);
+        quota.setQuota(nsQuota, ssQuota);
       }
       if (!isQuotaSet() && !isRoot()) {
         removeFeature(quota);
@@ -154,9 +154,9 @@ public class INodeDirectory extends INodeWithAdditionalFields
       DirectoryWithQuotaFeature.Builder builder =
           new DirectoryWithQuotaFeature.Builder().nameSpaceQuota(nsQuota);
       if (type != null) {
-        builder.typeQuota(type, dsQuota);
+        builder.typeQuota(type, ssQuota);
       } else {
-        builder.spaceQuota(dsQuota);
+        builder.storageSpaceQuota(ssQuota);
       }
       addDirectoryWithQuotaFeature(builder.build()).setSpaceConsumed(c);
     }
@@ -588,7 +588,7 @@ public class INodeDirectory extends INodeWithAdditionalFields
     // compute the quota usage in the scope of the current directory tree
     final DirectoryWithQuotaFeature q = getDirectoryWithQuotaFeature();
     if (useCache && q != null && q.isQuotaSet()) { // use the cached quota
-      return q.addNamespaceDiskspace(counts);
+      return q.AddCurrentSpaceUsage(counts);
     } else {
       useCache = q != null && !q.isQuotaSet() ? false : useCache;
       return computeDirectoryQuotaUsage(bsps, counts, useCache, lastSnapshotId);

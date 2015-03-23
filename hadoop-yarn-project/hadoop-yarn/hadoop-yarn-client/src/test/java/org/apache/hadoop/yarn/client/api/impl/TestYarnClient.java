@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -37,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
@@ -63,6 +65,8 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetContainerReportRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerReportResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainersRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainersResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetLabelsToNodesRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetLabelsToNodesResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.KillApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.KillApplicationResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.ReservationDeleteRequest;
@@ -113,7 +117,6 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.Capacity
 import org.apache.hadoop.yarn.util.Clock;
 import org.apache.hadoop.yarn.util.Records;
 import org.apache.hadoop.yarn.util.UTCClock;
-import org.apache.hadoop.yarn.util.timeline.TimelineUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -153,12 +156,9 @@ public class TestYarnClient {
 
     YarnApplicationState[] exitStates = new YarnApplicationState[]
         {
-          YarnApplicationState.SUBMITTED,
           YarnApplicationState.ACCEPTED,
           YarnApplicationState.RUNNING,
-          YarnApplicationState.FINISHED,
-          YarnApplicationState.FAILED,
-          YarnApplicationState.KILLED
+          YarnApplicationState.FINISHED
         };
 
     // Submit an application without ApplicationId provided
@@ -199,6 +199,54 @@ public class TestYarnClient {
     client.stop();
   }
 
+  @Test (timeout = 30000)
+  public void testSubmitIncorrectQueue() throws IOException {
+    MiniYARNCluster cluster = new MiniYARNCluster("testMRAMTokens", 1, 1, 1);
+    YarnClient rmClient = null;
+    try {
+      cluster.init(new YarnConfiguration());
+	     cluster.start();
+      final Configuration yarnConf = cluster.getConfig();
+      rmClient = YarnClient.createYarnClient();
+      rmClient.init(yarnConf);
+      rmClient.start();
+      YarnClientApplication newApp = rmClient.createApplication();
+
+      ApplicationId appId = newApp.getNewApplicationResponse().getApplicationId();
+
+      // Create launch context for app master
+      ApplicationSubmissionContext appContext
+        = Records.newRecord(ApplicationSubmissionContext.class);
+
+      // set the application id
+      appContext.setApplicationId(appId);
+
+      // set the application name
+      appContext.setApplicationName("test");
+
+      // Set the queue to which this application is to be submitted in the RM
+      appContext.setQueue("nonexist");
+
+      // Set up the container launch context for the application master
+      ContainerLaunchContext amContainer
+        = Records.newRecord(ContainerLaunchContext.class);
+      appContext.setAMContainerSpec(amContainer);
+      appContext.setResource(Resource.newInstance(1024, 1));
+      // appContext.setUnmanagedAM(unmanaged);
+
+      // Submit the application to the applications manager
+      rmClient.submitApplication(appContext);
+      Assert.fail("Job submission should have thrown an exception");
+    } catch (YarnException e) {
+      Assert.assertTrue(e.getMessage().contains("Failed to submit"));
+    } finally {
+      if (rmClient != null) {
+        rmClient.stop();
+      }
+      cluster.stop();
+    }
+  }
+  
   @Test
   public void testKillApplication() throws Exception {
     MockRM rm = new MockRM();
@@ -402,6 +450,32 @@ public class TestYarnClient {
     client.stop();
   }
 
+  @Test (timeout = 10000)
+  public void testGetLabelsToNodes() throws YarnException, IOException {
+    Configuration conf = new Configuration();
+    final YarnClient client = new MockYarnClient();
+    client.init(conf);
+    client.start();
+
+    // Get labels to nodes mapping
+    Map<String, Set<NodeId>> expectedLabelsToNodes =
+        ((MockYarnClient)client).getLabelsToNodesMap();
+    Map<String, Set<NodeId>> labelsToNodes = client.getLabelsToNodes();
+    Assert.assertEquals(labelsToNodes, expectedLabelsToNodes);
+    Assert.assertEquals(labelsToNodes.size(), 3);
+
+    // Get labels to nodes for selected labels
+    Set<String> setLabels = new HashSet<String>(Arrays.asList("x", "z"));
+    expectedLabelsToNodes =
+        ((MockYarnClient)client).getLabelsToNodesMap(setLabels);
+    labelsToNodes = client.getLabelsToNodes(setLabels);
+    Assert.assertEquals(labelsToNodes, expectedLabelsToNodes);
+    Assert.assertEquals(labelsToNodes.size(), 2);
+
+    client.stop();
+    client.close();
+  }
+
   private static class MockYarnClient extends YarnClientImpl {
     private ApplicationReport mockReport;
     private List<ApplicationReport> reports;
@@ -422,6 +496,8 @@ public class TestYarnClient {
       mock(GetContainersResponse.class);
     GetContainerReportResponse mockContainerResponse = 
       mock(GetContainerReportResponse.class);
+    GetLabelsToNodesResponse mockLabelsToNodesResponse =
+      mock(GetLabelsToNodesResponse.class);
 
     public MockYarnClient() {
       super();
@@ -457,6 +533,9 @@ public class TestYarnClient {
 
         when(rmClient.getContainerReport(any(GetContainerReportRequest.class)))
             .thenReturn(mockContainerResponse);
+
+        when(rmClient.getLabelsToNodes(any(GetLabelsToNodesRequest.class)))
+            .thenReturn(mockLabelsToNodesResponse);
         
         historyClient = mock(AHSClient.class);
         
@@ -533,13 +612,15 @@ public class TestYarnClient {
       ContainerReport container = ContainerReport.newInstance(
           ContainerId.newContainerId(attempt.getApplicationAttemptId(), 1), null,
           NodeId.newInstance("host", 1234), Priority.UNDEFINED, 1234, 5678,
-          "diagnosticInfo", "logURL", 0, ContainerState.RUNNING);
+          "diagnosticInfo", "logURL", 0, ContainerState.RUNNING,
+          "http://" + NodeId.newInstance("host", 2345).toString());
       containerReports.add(container);
 
       ContainerReport container1 = ContainerReport.newInstance(
           ContainerId.newContainerId(attempt.getApplicationAttemptId(), 2), null,
           NodeId.newInstance("host", 1234), Priority.UNDEFINED, 1234, 5678,
-          "diagnosticInfo", "logURL", 0, ContainerState.RUNNING);
+          "diagnosticInfo", "logURL", 0, ContainerState.RUNNING,
+          "http://" + NodeId.newInstance("host", 2345).toString());
       containerReports.add(container1);
       containers.put(attempt.getApplicationAttemptId(), containerReports);
       
@@ -550,18 +631,21 @@ public class TestYarnClient {
       container = ContainerReport.newInstance(
           ContainerId.newContainerId(attempt.getApplicationAttemptId(), 1), null,
           NodeId.newInstance("host", 1234), Priority.UNDEFINED, 1234, 5678,
-          "diagnosticInfo", "logURL", 0, null);
+          "diagnosticInfo", "logURL", 0, null,
+          "http://" + NodeId.newInstance("host", 2345).toString());
       containerReportsForAHS.add(container);
 
       container1 = ContainerReport.newInstance(
           ContainerId.newContainerId(attempt.getApplicationAttemptId(), 2), null,
           NodeId.newInstance("host", 1234), Priority.UNDEFINED, 1234, 5678,
-          "diagnosticInfo", "HSlogURL", 0, null);
+          "diagnosticInfo", "HSlogURL", 0, null,
+          "http://" + NodeId.newInstance("host", 2345).toString());
       containerReportsForAHS.add(container1);
       ContainerReport container2 = ContainerReport.newInstance(
           ContainerId.newContainerId(attempt.getApplicationAttemptId(),3), null,
           NodeId.newInstance("host", 1234), Priority.UNDEFINED, 1234, 5678,
-          "diagnosticInfo", "HSlogURL", 0, ContainerState.COMPLETE);
+          "diagnosticInfo", "HSlogURL", 0, ContainerState.COMPLETE,
+          "http://" + NodeId.newInstance("host", 2345).toString());
       containerReportsForAHS.add(container2);
       containersFromAHS.put(attempt.getApplicationAttemptId(), containerReportsForAHS);
 
@@ -617,7 +701,45 @@ public class TestYarnClient {
       }
       return appReports;
     }
-   
+
+    @Override
+    public Map<String, Set<NodeId>> getLabelsToNodes()
+        throws YarnException, IOException {
+      when(mockLabelsToNodesResponse.getLabelsToNodes()).thenReturn(
+          getLabelsToNodesMap());
+      return super.getLabelsToNodes();
+    }
+
+    @Override
+    public Map<String, Set<NodeId>> getLabelsToNodes(Set<String> labels)
+        throws YarnException, IOException {
+      when(mockLabelsToNodesResponse.getLabelsToNodes()).thenReturn(
+          getLabelsToNodesMap(labels));
+      return super.getLabelsToNodes(labels);
+    }
+
+    public Map<String, Set<NodeId>> getLabelsToNodesMap() {
+      Map<String, Set<NodeId>> map = new HashMap<String, Set<NodeId>>();
+      Set<NodeId> setNodeIds =
+          new HashSet<NodeId>(Arrays.asList(
+          NodeId.newInstance("host1", 0), NodeId.newInstance("host2", 0)));
+      map.put("x", setNodeIds);
+      map.put("y", setNodeIds);
+      map.put("z", setNodeIds);
+      return map;
+    }
+
+    public Map<String, Set<NodeId>> getLabelsToNodesMap(Set<String> labels) {
+      Map<String, Set<NodeId>> map = new HashMap<String, Set<NodeId>>();
+      Set<NodeId> setNodeIds =
+          new HashSet<NodeId>(Arrays.asList(
+          NodeId.newInstance("host1", 0), NodeId.newInstance("host2", 0)));
+      for(String label : labels) {
+        map.put(label, setNodeIds);
+      }
+      return map;
+    }
+
     @Override
     public List<ApplicationAttemptReport> getApplicationAttempts(
         ApplicationId appId) throws YarnException, IOException {
@@ -925,7 +1047,7 @@ public class TestYarnClient {
       public ApplicationReport getApplicationReport(ApplicationId appId) {
         ApplicationReport report = mock(ApplicationReport.class);
         when(report.getYarnApplicationState())
-            .thenReturn(YarnApplicationState.SUBMITTED);
+            .thenReturn(YarnApplicationState.RUNNING);
         return report;
       }
 

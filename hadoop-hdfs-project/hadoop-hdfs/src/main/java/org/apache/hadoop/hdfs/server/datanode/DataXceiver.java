@@ -22,8 +22,10 @@ import static org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.Status.ER
 import static org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.Status.ERROR_INVALID;
 import static org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.Status.ERROR_UNSUPPORTED;
 import static org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.Status.SUCCESS;
+import static org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.ShortCircuitFdResponse.USE_RECEIPT_VERIFICATION;
+import static org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.ShortCircuitFdResponse.DO_NOT_USE_RECEIPT_VERIFICATION;
 import static org.apache.hadoop.hdfs.server.datanode.DataNode.DN_CLIENTTRACE_FORMAT;
-import static org.apache.hadoop.util.Time.now;
+import static org.apache.hadoop.util.Time.monotonicNow;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -45,8 +47,8 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 
 import org.apache.commons.logging.Log;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.ExtendedBlockId;
-import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.hdfs.net.Peer;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
@@ -86,6 +88,7 @@ import org.apache.hadoop.util.DataChecksum;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
+import org.apache.hadoop.util.Time;
 
 
 /**
@@ -244,7 +247,7 @@ class DataXceiver extends Receiver implements Runnable {
           peer.setReadTimeout(dnConf.socketTimeout);
         }
 
-        opStartTime = now();
+        opStartTime = monotonicNow();
         processOp(op);
         ++opsProcessed;
       } while ((peer != null) &&
@@ -290,64 +293,83 @@ class DataXceiver extends Receiver implements Runnable {
   @Override
   public void requestShortCircuitFds(final ExtendedBlock blk,
       final Token<BlockTokenIdentifier> token,
-      SlotId slotId, int maxVersion) throws IOException {
+      SlotId slotId, int maxVersion, boolean supportsReceiptVerification)
+        throws IOException {
     updateCurrentThreadName("Passing file descriptors for block " + blk);
     BlockOpResponseProto.Builder bld = BlockOpResponseProto.newBuilder();
     FileInputStream fis[] = null;
+    SlotId registeredSlotId = null;
+    boolean success = false;
     try {
-      if (peer.getDomainSocket() == null) {
-        throw new IOException("You cannot pass file descriptors over " +
-            "anything but a UNIX domain socket.");
-      }
-      if (slotId != null) {
-        boolean isCached = datanode.data.
-            isCached(blk.getBlockPoolId(), blk.getBlockId());
-        datanode.shortCircuitRegistry.registerSlot(
-            ExtendedBlockId.fromExtendedBlock(blk), slotId, isCached);
-      }
       try {
-        fis = datanode.requestShortCircuitFdsForRead(blk, token, maxVersion);
-      } finally {
-        if ((fis == null) && (slotId != null)) {
-          datanode.shortCircuitRegistry.unregisterSlot(slotId);
+        if (peer.getDomainSocket() == null) {
+          throw new IOException("You cannot pass file descriptors over " +
+              "anything but a UNIX domain socket.");
         }
+        if (slotId != null) {
+          boolean isCached = datanode.data.
+              isCached(blk.getBlockPoolId(), blk.getBlockId());
+          datanode.shortCircuitRegistry.registerSlot(
+              ExtendedBlockId.fromExtendedBlock(blk), slotId, isCached);
+          registeredSlotId = slotId;
+        }
+        fis = datanode.requestShortCircuitFdsForRead(blk, token, maxVersion);
+        Preconditions.checkState(fis != null);
+        bld.setStatus(SUCCESS);
+        bld.setShortCircuitAccessVersion(DataNode.CURRENT_BLOCK_FORMAT_VERSION);
+      } catch (ShortCircuitFdsVersionException e) {
+        bld.setStatus(ERROR_UNSUPPORTED);
+        bld.setShortCircuitAccessVersion(DataNode.CURRENT_BLOCK_FORMAT_VERSION);
+        bld.setMessage(e.getMessage());
+      } catch (ShortCircuitFdsUnsupportedException e) {
+        bld.setStatus(ERROR_UNSUPPORTED);
+        bld.setMessage(e.getMessage());
+      } catch (InvalidToken e) {
+        bld.setStatus(ERROR_ACCESS_TOKEN);
+        bld.setMessage(e.getMessage());
+      } catch (IOException e) {
+        bld.setStatus(ERROR);
+        bld.setMessage(e.getMessage());
       }
-      bld.setStatus(SUCCESS);
-      bld.setShortCircuitAccessVersion(DataNode.CURRENT_BLOCK_FORMAT_VERSION);
-    } catch (ShortCircuitFdsVersionException e) {
-      bld.setStatus(ERROR_UNSUPPORTED);
-      bld.setShortCircuitAccessVersion(DataNode.CURRENT_BLOCK_FORMAT_VERSION);
-      bld.setMessage(e.getMessage());
-    } catch (ShortCircuitFdsUnsupportedException e) {
-      bld.setStatus(ERROR_UNSUPPORTED);
-      bld.setMessage(e.getMessage());
-    } catch (InvalidToken e) {
-      bld.setStatus(ERROR_ACCESS_TOKEN);
-      bld.setMessage(e.getMessage());
-    } catch (IOException e) {
-      bld.setStatus(ERROR);
-      bld.setMessage(e.getMessage());
-    }
-    try {
       bld.build().writeDelimitedTo(socketOut);
       if (fis != null) {
         FileDescriptor fds[] = new FileDescriptor[fis.length];
         for (int i = 0; i < fds.length; i++) {
           fds[i] = fis[i].getFD();
         }
-        byte buf[] = new byte[] { (byte)0 };
-        peer.getDomainSocket().
-          sendFileDescriptors(fds, buf, 0, buf.length);
+        byte buf[] = new byte[1];
+        if (supportsReceiptVerification) {
+          buf[0] = (byte)USE_RECEIPT_VERIFICATION.getNumber();
+        } else {
+          buf[0] = (byte)DO_NOT_USE_RECEIPT_VERIFICATION.getNumber();
+        }
+        DomainSocket sock = peer.getDomainSocket();
+        sock.sendFileDescriptors(fds, buf, 0, buf.length);
+        if (supportsReceiptVerification) {
+          LOG.trace("Reading receipt verification byte for " + slotId);
+          int val = sock.getInputStream().read();
+          if (val < 0) {
+            throw new EOFException();
+          }
+        } else {
+          LOG.trace("Receipt verification is not enabled on the DataNode.  " +
+                    "Not verifying " + slotId);
+        }
+        success = true;
       }
     } finally {
+      if ((!success) && (registeredSlotId != null)) {
+        LOG.info("Unregistering " + registeredSlotId + " because the " +
+            "requestShortCircuitFdsForRead operation failed.");
+        datanode.shortCircuitRegistry.unregisterSlot(registeredSlotId);
+      }
       if (ClientTraceLog.isInfoEnabled()) {
         DatanodeRegistration dnR = datanode.getDNRegistrationForBP(blk
             .getBlockPoolId());
         BlockSender.ClientTraceLog.info(String.format(
             "src: 127.0.0.1, dest: 127.0.0.1, op: REQUEST_SHORT_CIRCUIT_FDS," +
             " blockid: %s, srvID: %s, success: %b",
-            blk.getBlockId(), dnR.getDatanodeUuid(), (fis != null)
-          ));
+            blk.getBlockId(), dnR.getDatanodeUuid(), success));
       }
       if (fis != null) {
         IOUtils.cleanup(LOG, fis);
@@ -480,7 +502,7 @@ class DataXceiver extends Receiver implements Runnable {
       final boolean sendChecksum,
       final CachingStrategy cachingStrategy) throws IOException {
     previousOpClientName = clientName;
-
+    long read = 0;
     OutputStream baseStream = getOutputStream();
     DataOutputStream out = new DataOutputStream(new BufferedOutputStream(
         baseStream, HdfsConstants.SMALL_BUFFER_SIZE));
@@ -515,8 +537,9 @@ class DataXceiver extends Receiver implements Runnable {
       // send op status
       writeSuccessWithChecksumInfo(blockSender, new DataOutputStream(getOutputStream()));
 
-      long read = blockSender.sendBlock(out, baseStream, null); // send data
-
+      long beginRead = Time.monotonicNow();
+      read = blockSender.sendBlock(out, baseStream, null); // send data
+      long duration = Time.monotonicNow() - beginRead;
       if (blockSender.didSendEntireByteRange()) {
         // If we sent the entire range, then we should expect the client
         // to respond with a Status enum.
@@ -539,6 +562,7 @@ class DataXceiver extends Receiver implements Runnable {
       }
       datanode.metrics.incrBytesRead((int) read);
       datanode.metrics.incrBlocksRead();
+      datanode.metrics.incrTotalReadTime(duration);
     } catch ( SocketException ignored ) {
       if (LOG.isTraceEnabled()) {
         LOG.trace(dnR + ":Ignoring exception while serving " + block + " to " +
@@ -563,7 +587,7 @@ class DataXceiver extends Receiver implements Runnable {
 
     //update metrics
     datanode.metrics.addReadBlockOp(elapsed());
-    datanode.metrics.incrReadsFromClient(peer.isLocal());
+    datanode.metrics.incrReadsFromClient(peer.isLocal(), read);
   }
 
   @Override
@@ -590,7 +614,7 @@ class DataXceiver extends Receiver implements Runnable {
     final boolean isClient = !isDatanode;
     final boolean isTransfer = stage == BlockConstructionStage.TRANSFER_RBW
         || stage == BlockConstructionStage.TRANSFER_FINALIZED;
-
+    long size = 0;
     // check single target for transfer-RBW/Finalized 
     if (isTransfer && targets.length > 0) {
       throw new IOException(stage + " does not support multiple targets "
@@ -796,7 +820,9 @@ class DataXceiver extends Receiver implements Runnable {
             + localAddress + " of size " + block.getNumBytes());
       }
 
-      
+      if(isClient) {
+        size = block.getNumBytes();
+      }
     } catch (IOException ioe) {
       LOG.info("opWriteBlock " + block + " received exception " + ioe);
       incrDatanodeNetworkErrors();
@@ -813,7 +839,7 @@ class DataXceiver extends Receiver implements Runnable {
 
     //update metrics
     datanode.metrics.addWriteBlockOp(elapsed());
-    datanode.metrics.incrWritesFromClient(peer.isLocal());
+    datanode.metrics.incrWritesFromClient(peer.isLocal(), size);
   }
 
   @Override
@@ -993,12 +1019,15 @@ class DataXceiver extends Receiver implements Runnable {
 
       // send status first
       writeSuccessWithChecksumInfo(blockSender, reply);
-      // send block content to the target
-      long read = blockSender.sendBlock(reply, baseStream, 
-                                        dataXceiverServer.balanceThrottler);
 
+      long beginRead = Time.monotonicNow();
+      // send block content to the target
+      long read = blockSender.sendBlock(reply, baseStream,
+                                        dataXceiverServer.balanceThrottler);
+      long duration = Time.monotonicNow() - beginRead;
       datanode.metrics.incrBytesRead((int) read);
       datanode.metrics.incrBlocksRead();
+      datanode.metrics.incrTotalReadTime(duration);
       
       LOG.info("Copied " + block + " to " + peer.getRemoteAddressString());
     } catch (IOException ioe) {
@@ -1108,16 +1137,10 @@ class DataXceiver extends Receiver implements Runnable {
         BlockOpResponseProto copyResponse = BlockOpResponseProto.parseFrom(
             PBHelper.vintPrefixed(proxyReply));
         
-        if (copyResponse.getStatus() != SUCCESS) {
-          if (copyResponse.getStatus() == ERROR_ACCESS_TOKEN) {
-            throw new IOException("Copy block " + block + " from "
-                + proxySock.getRemoteSocketAddress()
-                + " failed due to access token error");
-          }
-          throw new IOException("Copy block " + block + " from "
-              + proxySock.getRemoteSocketAddress() + " failed");
-        }
-        
+        String logInfo = "copy block " + block + " from "
+            + proxySock.getRemoteSocketAddress();
+        DataTransferProtoUtil.checkBlockOpStatus(copyResponse, logInfo);
+
         // get checksum info about the block we're copying
         ReadOpChecksumInfoProto checksumInfo = copyResponse.getReadOpChecksumInfo();
         DataChecksum remoteChecksum = DataTransferProtoUtil.fromProto(
@@ -1179,7 +1202,7 @@ class DataXceiver extends Receiver implements Runnable {
   }
 
   private long elapsed() {
-    return now() - opStartTime;
+    return monotonicNow() - opStartTime;
   }
 
   /**

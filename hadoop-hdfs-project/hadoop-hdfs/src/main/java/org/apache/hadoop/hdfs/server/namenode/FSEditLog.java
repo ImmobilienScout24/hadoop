@@ -18,7 +18,7 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import static org.apache.hadoop.util.ExitUtil.terminate;
-import static org.apache.hadoop.util.Time.now;
+import static org.apache.hadoop.util.Time.monotonicNow;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -38,6 +38,7 @@ import org.apache.hadoop.fs.XAttr;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.CacheDirectiveInfo;
@@ -98,7 +99,6 @@ import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
-import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.security.token.delegation.DelegationKey;
@@ -230,7 +230,7 @@ public class FSEditLog implements LogsPurgeable {
     this.conf = conf;
     this.storage = storage;
     metrics = NameNode.getNameNodeMetrics();
-    lastPrintTime = now();
+    lastPrintTime = monotonicNow();
      
     // If this list is empty, an error will be thrown on first use
     // of the editlog, as no journals will exist
@@ -486,14 +486,14 @@ public class FSEditLog implements LogsPurgeable {
     //
     TransactionId id = myTransactionId.get();
     id.txid = txid;
-    return now();
+    return monotonicNow();
   }
   
   private void endTransaction(long start) {
     assert Thread.holdsLock(this);
     
     // update statistics
-    long end = now();
+    long end = monotonicNow();
     numTransactions++;
     totalTimeTransactions += (end-start);
     if (metrics != null) // Metrics is non-null only when used inside name node
@@ -640,7 +640,7 @@ public class FSEditLog implements LogsPurgeable {
       }
       
       // do the sync
-      long start = now();
+      long start = monotonicNow();
       try {
         if (logStream != null) {
           logStream.flush();
@@ -657,7 +657,7 @@ public class FSEditLog implements LogsPurgeable {
           terminate(1, msg);
         }
       }
-      long elapsed = now() - start;
+      long elapsed = monotonicNow() - start;
   
       if (metrics != null) { // Metrics non-null only when used inside name node
         metrics.addSync(elapsed);
@@ -679,7 +679,7 @@ public class FSEditLog implements LogsPurgeable {
   // print statistics every 1 minute.
   //
   private void printStatistics(boolean force) {
-    long now = now();
+    long now = monotonicNow();
     if (lastPrintTime + 60000 > now && !force) {
       return;
     }

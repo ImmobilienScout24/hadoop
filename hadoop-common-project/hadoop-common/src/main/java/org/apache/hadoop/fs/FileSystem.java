@@ -65,6 +65,7 @@ import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.ShutdownHookManager;
+import org.apache.hadoop.util.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -2699,10 +2700,12 @@ public abstract class FileSystem extends Configured implements Closeable {
     }
 
     synchronized void remove(Key key, FileSystem fs) {
-      if (map.containsKey(key) && fs == map.get(key)) {
-        map.remove(key);
+      FileSystem cachedFs = map.remove(key);
+      if (fs == cachedFs) {
         toAutoClose.remove(key);
-        }
+      } else if (cachedFs != null) {
+        map.put(key, cachedFs);
+      }
     }
 
     synchronized void closeAll() throws IOException {
@@ -2729,7 +2732,8 @@ public abstract class FileSystem extends Configured implements Closeable {
         }
 
         //remove from cache
-        remove(key, fs);
+        map.remove(key);
+        toAutoClose.remove(key);
 
         if (fs != null) {
           try {
@@ -2795,8 +2799,10 @@ public abstract class FileSystem extends Configured implements Closeable {
       }
 
       Key(URI uri, Configuration conf, long unique) throws IOException {
-        scheme = uri.getScheme()==null?"":uri.getScheme().toLowerCase();
-        authority = uri.getAuthority()==null?"":uri.getAuthority().toLowerCase();
+        scheme = uri.getScheme()==null ?
+            "" : StringUtils.toLowerCase(uri.getScheme());
+        authority = uri.getAuthority()==null ?
+            "" : StringUtils.toLowerCase(uri.getAuthority());
         this.unique = unique;
         
         this.ugi = UserGroupInformation.getCurrentUser();

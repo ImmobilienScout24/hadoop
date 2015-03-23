@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
@@ -50,11 +51,12 @@ public class ResourceUsage {
     writeLock = lock.writeLock();
 
     usages = new HashMap<String, UsageByLabel>();
+    usages.put(NL, new UsageByLabel(NL));
   }
 
   // Usage enum here to make implement cleaner
   private enum ResourceType {
-    USED(0), PENDING(1), AMUSED(2), RESERVED(3), HEADROOM(4);
+    USED(0), PENDING(1), AMUSED(2), RESERVED(3);
 
     private int idx;
 
@@ -71,7 +73,21 @@ public class ResourceUsage {
       resArr = new Resource[ResourceType.values().length];
       for (int i = 0; i < resArr.length; i++) {
         resArr[i] = Resource.newInstance(0, 0);
-      }
+      };
+    }
+    
+    public Resource getUsed() {
+      return resArr[ResourceType.USED.idx];
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder();
+      sb.append("{used=" + resArr[0] + "%, ");
+      sb.append("pending=" + resArr[1] + "%, ");
+      sb.append("am_used=" + resArr[2] + "%, ");
+      sb.append("reserved=" + resArr[3] + "%}");
+      return sb.toString();
     }
   }
 
@@ -104,6 +120,17 @@ public class ResourceUsage {
 
   public void setUsed(Resource res) {
     setUsed(NL, res);
+  }
+  
+  public void copyAllUsed(ResourceUsage other) {
+    try {
+      writeLock.lock();
+      for (Entry<String, UsageByLabel> entry : other.usages.entrySet()) {
+        setUsed(entry.getKey(), Resources.clone(entry.getValue().getUsed()));
+      }
+    } finally {
+      writeLock.unlock();
+    }
   }
 
   public void setUsed(String label, Resource res) {
@@ -178,41 +205,6 @@ public class ResourceUsage {
 
   public void setReserved(String label, Resource res) {
     _set(label, ResourceType.RESERVED, res);
-  }
-
-  /*
-   * Headroom
-   */
-  public Resource getHeadroom() {
-    return getHeadroom(NL);
-  }
-
-  public Resource getHeadroom(String label) {
-    return _get(label, ResourceType.HEADROOM);
-  }
-
-  public void incHeadroom(String label, Resource res) {
-    _inc(label, ResourceType.HEADROOM, res);
-  }
-
-  public void incHeadroom(Resource res) {
-    incHeadroom(NL, res);
-  }
-
-  public void decHeadroom(Resource res) {
-    decHeadroom(NL, res);
-  }
-
-  public void decHeadroom(String label, Resource res) {
-    _dec(label, ResourceType.HEADROOM, res);
-  }
-
-  public void setHeadroom(Resource res) {
-    setHeadroom(NL, res);
-  }
-
-  public void setHeadroom(String label, Resource res) {
-    _set(label, ResourceType.HEADROOM, res);
   }
 
   /*
@@ -307,6 +299,16 @@ public class ResourceUsage {
       Resources.subtractFrom(usage.resArr[type.idx], res);
     } finally {
       writeLock.unlock();
+    }
+  }
+  
+  @Override
+  public String toString() {
+    try {
+      readLock.lock();
+      return usages.toString();
+    } finally {
+      readLock.unlock();
     }
   }
 }

@@ -828,11 +828,14 @@
         <artifactId>zookeeper</artifactId>
         <version>${zookeeper.version}</version>
         <type>test-jar</type>
-        <scope>test</scope>
         <exclusions>
           <exclusion>
             <groupId>org.jboss.netty</groupId>
             <artifactId>netty</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>jline</groupId>
+            <artifactId>jline</artifactId>
           </exclusion>
         </exclusions>
       </dependency>
@@ -903,9 +906,9 @@
       </dependency>
 
       <dependency>
-        <groupId>com.microsoft.windowsazure.storage</groupId>
-        <artifactId>microsoft-windowsazure-storage-sdk</artifactId>
-        <version>0.6.0</version>
+        <groupId>com.microsoft.azure</groupId>
+        <artifactId>azure-storage</artifactId>
+        <version>2.0.0</version>
      </dependency>
 
      <dependency>

@@ -40,6 +40,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HAUtil;
@@ -66,7 +67,6 @@ import org.apache.hadoop.hdfs.server.protocol.NamenodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
-import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.hdfs.util.Canceler;
 import org.apache.hadoop.hdfs.util.EnumCounters;
 import org.apache.hadoop.hdfs.util.MD5FileUtils;
@@ -406,7 +406,7 @@ public class FSImage implements Closeable {
     for (Iterator<StorageDirectory> it = storage.dirIterator(false); it.hasNext();) {
       StorageDirectory sd = it.next();
       try {
-        NNUpgradeUtil.doPreUpgrade(sd);
+        NNUpgradeUtil.doPreUpgrade(conf, sd);
       } catch (Exception e) {
         LOG.error("Failed to move aside pre-upgrade storage " +
             "in image directory " + sd.getRoot(), e);
@@ -687,10 +687,6 @@ public class FSImage implements Closeable {
       long txnsAdvanced = loadEdits(editStreams, target, startOpt, recovery);
       needToSave |= needsResaveBasedOnStaleCheckpoint(imageFile.getFile(),
           txnsAdvanced);
-      if (RollingUpgradeStartupOption.DOWNGRADE.matches(startOpt)) {
-        // rename rollback image if it is downgrade
-        renameCheckpoint(NameNodeFile.IMAGE_ROLLBACK, NameNodeFile.IMAGE);
-      }
     } else {
       // Trigger the rollback for rolling upgrade. Here lastAppliedTxId equals
       // to the last txid in rollback fsimage.
@@ -866,7 +862,7 @@ public class FSImage implements Closeable {
   private static void updateCountForQuotaRecursively(BlockStoragePolicySuite bsps,
       INodeDirectory dir, QuotaCounts counts) {
     final long parentNamespace = counts.getNameSpace();
-    final long parentDiskspace = counts.getDiskSpace();
+    final long parentStoragespace = counts.getStorageSpace();
     final EnumCounters<StorageType> parentTypeSpaces = counts.getTypeSpaces();
 
     dir.computeQuotaUsage4CurrentDirectory(bsps, counts);
@@ -887,17 +883,17 @@ public class FSImage implements Closeable {
       final long namespace = counts.getNameSpace() - parentNamespace;
       final long nsQuota = q.getNameSpace();
       if (Quota.isViolated(nsQuota, namespace)) {
-        LOG.error("BUG: Namespace quota violation in image for "
+        LOG.warn("Namespace quota violation in image for "
             + dir.getFullPathName()
             + " quota = " + nsQuota + " < consumed = " + namespace);
       }
 
-      final long diskspace = counts.getDiskSpace() - parentDiskspace;
-      final long dsQuota = q.getDiskSpace();
-      if (Quota.isViolated(dsQuota, diskspace)) {
-        LOG.error("BUG: Diskspace quota violation in image for "
+      final long ssConsumed = counts.getStorageSpace() - parentStoragespace;
+      final long ssQuota = q.getStorageSpace();
+      if (Quota.isViolated(ssQuota, ssConsumed)) {
+        LOG.warn("Storagespace quota violation in image for "
             + dir.getFullPathName()
-            + " quota = " + dsQuota + " < consumed = " + diskspace);
+            + " quota = " + ssQuota + " < consumed = " + ssConsumed);
       }
 
       final EnumCounters<StorageType> typeSpaces =
@@ -907,14 +903,14 @@ public class FSImage implements Closeable {
             parentTypeSpaces.get(t);
         final long typeQuota = q.getTypeSpaces().get(t);
         if (Quota.isViolated(typeQuota, typeSpace)) {
-          LOG.error("BUG Disk quota by storage type violation in image for "
+          LOG.warn("Storage type quota violation in image for "
               + dir.getFullPathName()
               + " type = " + t.toString() + " quota = "
               + typeQuota + " < consumed " + typeSpace);
         }
       }
 
-      dir.getDirectoryWithQuotaFeature().setSpaceConsumed(namespace, diskspace,
+      dir.getDirectoryWithQuotaFeature().setSpaceConsumed(namespace, ssConsumed,
           typeSpaces);
     }
   }

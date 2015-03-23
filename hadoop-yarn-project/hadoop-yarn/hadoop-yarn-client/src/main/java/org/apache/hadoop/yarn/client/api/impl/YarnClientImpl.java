@@ -61,6 +61,7 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetContainersRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainersResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetDelegationTokenRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetDelegationTokenResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetLabelsToNodesRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNodesToLabelsRequest;
@@ -253,13 +254,22 @@ public class YarnClientImpl extends YarnClient {
 
     int pollCount = 0;
     long startTime = System.currentTimeMillis();
-
+    EnumSet<YarnApplicationState> waitingStates = 
+                                 EnumSet.of(YarnApplicationState.NEW,
+                                 YarnApplicationState.NEW_SAVING,
+                                 YarnApplicationState.SUBMITTED);
+    EnumSet<YarnApplicationState> failToSubmitStates = 
+                                  EnumSet.of(YarnApplicationState.FAILED,
+                                  YarnApplicationState.KILLED);		
     while (true) {
       try {
-        YarnApplicationState state =
-            getApplicationReport(applicationId).getYarnApplicationState();
-        if (!state.equals(YarnApplicationState.NEW) &&
-            !state.equals(YarnApplicationState.NEW_SAVING)) {
+        ApplicationReport appReport = getApplicationReport(applicationId);
+        YarnApplicationState state = appReport.getYarnApplicationState();
+        if (!waitingStates.contains(state)) {
+          if(failToSubmitStates.contains(state)) {
+            throw new YarnException("Failed to submit " + applicationId + 
+                " to YARN : " + appReport.getDiagnostics());
+          }
           LOG.info("Submitted application " + applicationId);
           break;
         }
@@ -775,6 +785,20 @@ public class YarnClientImpl extends YarnClient {
       IOException {
     return rmClient.getNodeToLabels(GetNodesToLabelsRequest.newInstance())
         .getNodeToLabels();
+  }
+
+  @Override
+  public Map<String, Set<NodeId>> getLabelsToNodes() throws YarnException,
+      IOException {
+    return rmClient.getLabelsToNodes(GetLabelsToNodesRequest.newInstance())
+        .getLabelsToNodes();
+  }
+
+  @Override
+  public Map<String, Set<NodeId>> getLabelsToNodes(Set<String> labels)
+      throws YarnException, IOException {
+    return rmClient.getLabelsToNodes(
+        GetLabelsToNodesRequest.newInstance(labels)).getLabelsToNodes();
   }
 
   @Override

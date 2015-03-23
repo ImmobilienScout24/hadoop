@@ -24,12 +24,14 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
@@ -43,7 +45,6 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiff;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiffList;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshotFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
-import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.hdfs.util.LongBitFormat;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -107,6 +108,9 @@ public class INodeFile extends INodeWithAdditionalFields
     static long toLong(long preferredBlockSize, short replication,
         byte storagePolicyID) {
       long h = 0;
+      if (preferredBlockSize == 0) {
+        preferredBlockSize = PREFERRED_BLOCK_SIZE.BITS.getMin();
+      }
       h = PREFERRED_BLOCK_SIZE.BITS.combine(preferredBlockSize, h);
       h = REPLICATION.BITS.combine(replication, h);
       h = STORAGE_POLICY_ID.BITS.combine(storagePolicyID, h);
@@ -412,8 +416,8 @@ public class INodeFile extends INodeWithAdditionalFields
     return header;
   }
 
-  /** @return the diskspace required for a full block. */
-  final long getPreferredBlockDiskspace() {
+  /** @return the storagespace required for a full block. */
+  final long getPreferredBlockStoragespace() {
     return getPreferredBlockSize() * getBlockReplication();
   }
 
@@ -553,8 +557,8 @@ public class INodeFile extends INodeWithAdditionalFields
       BlockStoragePolicySuite bsps, QuotaCounts counts, boolean useCache,
       int lastSnapshotId) {
     long nsDelta = 1;
-    final long dsDeltaNoReplication;
-    short dsReplication;
+    final long ssDeltaNoReplication;
+    short replication;
     FileWithSnapshotFeature sf = getFileWithSnapshotFeature();
     if (sf != null) {
       FileDiffList fileDiffList = sf.getDiffs();
@@ -562,31 +566,31 @@ public class INodeFile extends INodeWithAdditionalFields
 
       if (lastSnapshotId == Snapshot.CURRENT_STATE_ID
           || last == Snapshot.CURRENT_STATE_ID) {
-        dsDeltaNoReplication = diskspaceConsumedNoReplication();
-        dsReplication = getBlockReplication();
+        ssDeltaNoReplication = storagespaceConsumedNoReplication();
+        replication = getBlockReplication();
       } else if (last < lastSnapshotId) {
-        dsDeltaNoReplication = computeFileSize(true, false);
-        dsReplication = getFileReplication();
+        ssDeltaNoReplication = computeFileSize(true, false);
+        replication = getFileReplication();
       } else {
         int sid = fileDiffList.getSnapshotById(lastSnapshotId);
-        dsDeltaNoReplication = diskspaceConsumedNoReplication(sid);
-        dsReplication = getReplication(sid);
+        ssDeltaNoReplication = storagespaceConsumedNoReplication(sid);
+        replication = getReplication(sid);
       }
     } else {
-      dsDeltaNoReplication = diskspaceConsumedNoReplication();
-      dsReplication = getBlockReplication();
+      ssDeltaNoReplication = storagespaceConsumedNoReplication();
+      replication = getBlockReplication();
     }
     counts.addNameSpace(nsDelta);
-    counts.addDiskSpace(dsDeltaNoReplication * dsReplication);
+    counts.addStorageSpace(ssDeltaNoReplication * replication);
 
     if (getStoragePolicyID() != BlockStoragePolicySuite.ID_UNSPECIFIED){
       BlockStoragePolicy bsp = bsps.getPolicy(getStoragePolicyID());
-      List<StorageType> storageTypes = bsp.chooseStorageTypes(dsReplication);
+      List<StorageType> storageTypes = bsp.chooseStorageTypes(replication);
       for (StorageType t : storageTypes) {
         if (!t.supportTypeQuota()) {
           continue;
         }
-        counts.addTypeSpace(t, dsDeltaNoReplication);
+        counts.addTypeSpace(t, ssDeltaNoReplication);
       }
     }
     return counts;
@@ -610,7 +614,7 @@ public class INodeFile extends INodeWithAdditionalFields
         counts.add(Content.LENGTH, computeFileSize());
       }
     }
-    counts.add(Content.DISKSPACE, diskspaceConsumed());
+    counts.add(Content.DISKSPACE, storagespaceConsumed());
     return summary;
   }
 
@@ -681,11 +685,11 @@ public class INodeFile extends INodeWithAdditionalFields
    * including blocks in its snapshots.
    * Use preferred block size for the last block if it is under construction.
    */
-  public final long diskspaceConsumed() {
-    return diskspaceConsumedNoReplication() * getBlockReplication();
+  public final long storagespaceConsumed() {
+    return storagespaceConsumedNoReplication() * getBlockReplication();
   }
 
-  public final long diskspaceConsumedNoReplication() {
+  public final long storagespaceConsumedNoReplication() {
     FileWithSnapshotFeature sf = getFileWithSnapshotFeature();
     if(sf == null) {
       return computeFileSize(true, true);
@@ -713,12 +717,12 @@ public class INodeFile extends INodeWithAdditionalFields
     return size;
   }
 
-  public final long diskspaceConsumed(int lastSnapshotId) {
+  public final long storagespaceConsumed(int lastSnapshotId) {
     if (lastSnapshotId != CURRENT_STATE_ID) {
       return computeFileSize(lastSnapshotId)
         * getFileReplication(lastSnapshotId);
     } else {
-      return diskspaceConsumed();
+      return storagespaceConsumed();
     }
   }
 
@@ -730,11 +734,11 @@ public class INodeFile extends INodeWithAdditionalFields
     }
   }
 
-  public final long diskspaceConsumedNoReplication(int lastSnapshotId) {
+  public final long storagespaceConsumedNoReplication(int lastSnapshotId) {
     if (lastSnapshotId != CURRENT_STATE_ID) {
       return computeFileSize(lastSnapshotId);
     } else {
-      return diskspaceConsumedNoReplication();
+      return storagespaceConsumedNoReplication();
     }
   }
 
@@ -799,6 +803,43 @@ public class INodeFile extends INodeWithAdditionalFields
       }
     }
     return size;
+  }
+
+  /**
+   * compute the quota usage change for a truncate op
+   * @param newLength the length for truncation
+   * @return the quota usage delta (not considering replication factor)
+   */
+  long computeQuotaDeltaForTruncate(final long newLength) {
+    final BlockInfoContiguous[] blocks = getBlocks();
+    if (blocks == null || blocks.length == 0) {
+      return 0;
+    }
+
+    int n = 0;
+    long size = 0;
+    for (; n < blocks.length && newLength > size; n++) {
+      size += blocks[n].getNumBytes();
+    }
+    final boolean onBoundary = size == newLength;
+
+    long truncateSize = 0;
+    for (int i = (onBoundary ? n : n - 1); i < blocks.length; i++) {
+      truncateSize += blocks[i].getNumBytes();
+    }
+
+    FileWithSnapshotFeature sf = getFileWithSnapshotFeature();
+    if (sf != null) {
+      FileDiff diff = sf.getDiffs().getLast();
+      BlockInfoContiguous[] sblocks = diff != null ? diff.getBlocks() : null;
+      if (sblocks != null) {
+        for (int i = (onBoundary ? n : n-1); i < blocks.length
+            && i < sblocks.length && blocks[i].equals(sblocks[i]); i++) {
+          truncateSize -= blocks[i].getNumBytes();
+        }
+      }
+    }
+    return onBoundary ? -truncateSize : (getPreferredBlockSize() - truncateSize);
   }
 
   void truncateBlocksTo(int n) {

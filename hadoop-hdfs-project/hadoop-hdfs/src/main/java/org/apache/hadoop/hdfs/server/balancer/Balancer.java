@@ -38,10 +38,10 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
-import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.hdfs.server.balancer.Dispatcher.DDatanode;
 import org.apache.hadoop.hdfs.server.balancer.Dispatcher.DDatanode.StorageGroup;
 import org.apache.hadoop.hdfs.server.balancer.Dispatcher.Source;
@@ -170,15 +170,14 @@ public class Balancer {
   private static final long GB = 1L << 30; //1GB
   private static final long MAX_SIZE_TO_MOVE = 10*GB;
 
-  private static final String USAGE = "Usage: java "
-      + Balancer.class.getSimpleName()
+  private static final String USAGE = "Usage: hdfs balancer"
       + "\n\t[-policy <policy>]\tthe balancing policy: "
       + BalancingPolicy.Node.INSTANCE.getName() + " or "
       + BalancingPolicy.Pool.INSTANCE.getName()
       + "\n\t[-threshold <threshold>]\tPercentage of disk capacity"
-      + "\n\t[-exclude [-f <hosts-file> | comma-sperated list of hosts]]"
+      + "\n\t[-exclude [-f <hosts-file> | <comma-separated list of hosts>]]"
       + "\tExcludes the specified datanodes."
-      + "\n\t[-include [-f <hosts-file> | comma-sperated list of hosts]]"
+      + "\n\t[-include [-f <hosts-file> | <comma-separated list of hosts>]]"
       + "\tIncludes only the specified datanodes."
       + "\n\t[-idleiterations <idleiterations>]"
       + "\tNumber of consecutive idle iterations (-1 for Infinite) before exit.";
@@ -673,7 +672,7 @@ public class Balancer {
      */
     @Override
     public int run(String[] args) {
-      final long startTime = Time.now();
+      final long startTime = Time.monotonicNow();
       final Configuration conf = getConf();
 
       try {
@@ -688,8 +687,10 @@ public class Balancer {
         System.out.println(e + ".  Exiting ...");
         return ExitStatus.INTERRUPTED.getExitCode();
       } finally {
-        System.out.format("%-24s ", DateFormat.getDateTimeInstance().format(new Date()));
-        System.out.println("Balancing took " + time2Str(Time.now()-startTime));
+        System.out.format("%-24s ",
+            DateFormat.getDateTimeInstance().format(new Date()));
+        System.out.println("Balancing took "
+            + time2Str(Time.monotonicNow() - startTime));
       }
     }
 

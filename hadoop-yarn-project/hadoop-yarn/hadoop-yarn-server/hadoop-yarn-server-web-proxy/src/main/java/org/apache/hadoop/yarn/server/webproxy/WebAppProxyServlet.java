@@ -20,9 +20,9 @@ package org.apache.hadoop.yarn.server.webproxy;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.io.ObjectInputStream;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -38,14 +38,8 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.core.UriBuilder;
 
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HostConfiguration;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpMethod;
-import org.apache.commons.httpclient.cookie.CookiePolicy;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.params.HttpClientParams;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
@@ -58,6 +52,15 @@ import org.apache.hadoop.yarn.util.TrackingUriPlugin;
 import org.apache.hadoop.yarn.webapp.MimeType;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.util.WebAppUtils;
+import org.apache.http.Header;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.params.ClientPNames;
+import org.apache.http.client.params.CookiePolicy;
+import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.impl.client.DefaultHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -152,23 +155,22 @@ public class WebAppProxyServlet extends HttpServlet {
   private static void proxyLink(HttpServletRequest req, 
       HttpServletResponse resp, URI link, Cookie c, String proxyHost)
       throws IOException {
-    org.apache.commons.httpclient.URI uri = 
-      new org.apache.commons.httpclient.URI(link.toString(), false);
-    HttpClientParams params = new HttpClientParams();
-    params.setCookiePolicy(CookiePolicy.BROWSER_COMPATIBILITY);
-    params.setBooleanParameter(HttpClientParams.ALLOW_CIRCULAR_REDIRECTS, true);
-    HttpClient client = new HttpClient(params);
+    DefaultHttpClient client = new DefaultHttpClient();
+    client
+        .getParams()
+        .setParameter(ClientPNames.COOKIE_POLICY,
+            CookiePolicy.BROWSER_COMPATIBILITY)
+        .setBooleanParameter(ClientPNames.ALLOW_CIRCULAR_REDIRECTS, true);
     // Make sure we send the request from the proxy address in the config
     // since that is what the AM filter checks against. IP aliasing or
     // similar could cause issues otherwise.
-    HostConfiguration config = new HostConfiguration();
     InetAddress localAddress = InetAddress.getByName(proxyHost);
     if (LOG.isDebugEnabled()) {
       LOG.debug("local InetAddress for proxy host: {}", localAddress);
     }
-    config.setLocalAddress(localAddress);
-    HttpMethod method = new GetMethod(uri.getEscapedURI());
-    method.setRequestHeader("Connection","close");
+    client.getParams()
+        .setParameter(ConnRoutePNames.LOCAL_ADDRESS, localAddress);
+    HttpGet httpGet = new HttpGet(link);
     @SuppressWarnings("unchecked")
     Enumeration<String> names = req.getHeaderNames();
     while(names.hasMoreElements()) {
@@ -178,30 +180,31 @@ public class WebAppProxyServlet extends HttpServlet {
         if (LOG.isDebugEnabled()) {
           LOG.debug("REQ HEADER: {} : {}", name, value);
         }
-        method.setRequestHeader(name, value);
+        httpGet.setHeader(name, value);
       }
     }
 
     String user = req.getRemoteUser();
     if (user != null && !user.isEmpty()) {
-      method.setRequestHeader("Cookie",
+      httpGet.setHeader("Cookie",
           PROXY_USER_COOKIE_NAME + "=" + URLEncoder.encode(user, "ASCII"));
     }
     OutputStream out = resp.getOutputStream();
     try {
-      resp.setStatus(client.executeMethod(config, method));
-      for(Header header : method.getResponseHeaders()) {
+      HttpResponse httpResp = client.execute(httpGet);
+      resp.setStatus(httpResp.getStatusLine().getStatusCode());
+      for (Header header : httpResp.getAllHeaders()) {
         resp.setHeader(header.getName(), header.getValue());
       }
       if (c != null) {
         resp.addCookie(c);
       }
-      InputStream in = method.getResponseBodyAsStream();
+      InputStream in = httpResp.getEntity().getContent();
       if (in != null) {
         IOUtils.copyBytes(in, out, 4096, true);
       }
     } finally {
-      method.releaseConnection();
+      httpGet.releaseConnection();
     }
   }
   
@@ -325,11 +328,17 @@ public class WebAppProxyServlet extends HttpServlet {
             req.getQueryString(), true), runningUser, id);
         return;
       }
-      URI toFetch = new URI(trackingUri.getScheme(), 
-          trackingUri.getAuthority(),
-          StringHelper.ujoin(trackingUri.getPath(), rest), req.getQueryString(),
-          null);
-      
+
+      // Append the user-provided path and query parameter to the original
+      // tracking url.
+      List<NameValuePair> queryPairs =
+          URLEncodedUtils.parse(req.getQueryString(), null);
+      UriBuilder builder = UriBuilder.fromUri(trackingUri);
+      for (NameValuePair pair : queryPairs) {
+        builder.queryParam(pair.getName(), pair.getValue());
+      }
+      URI toFetch = builder.path(rest).build();
+
       LOG.info("{} is accessing unchecked {}"
           + " which is the app master GUI of {} owned by {}",
           remoteUser, toFetch, appId, runningUser);

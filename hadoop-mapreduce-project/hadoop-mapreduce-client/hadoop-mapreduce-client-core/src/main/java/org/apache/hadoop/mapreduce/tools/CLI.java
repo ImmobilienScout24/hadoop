@@ -222,12 +222,14 @@ public class CLI extends Configured implements Tool {
       taskType = argv[2];
       taskState = argv[3];
       displayTasks = true;
-      if (!taskTypes.contains(taskType.toUpperCase())) {
+      if (!taskTypes.contains(
+          org.apache.hadoop.util.StringUtils.toUpperCase(taskType))) {
         System.out.println("Error: Invalid task-type: " + taskType);
         displayUsage(cmd);
         return exitCode;
       }
-      if (!taskStates.contains(taskState.toLowerCase())) {
+      if (!taskStates.contains(
+          org.apache.hadoop.util.StringUtils.toLowerCase(taskState))) {
         System.out.println("Error: Invalid task-state: " + taskState);
         displayUsage(cmd);
         return exitCode;
@@ -593,7 +595,8 @@ public class CLI extends Configured implements Tool {
   throws IOException, InterruptedException {
 	  
     TaskReport[] reports=null;
-    reports = job.getTaskReports(TaskType.valueOf(type.toUpperCase()));
+    reports = job.getTaskReports(TaskType.valueOf(
+        org.apache.hadoop.util.StringUtils.toUpperCase(type)));
     for (TaskReport report : reports) {
       TIPStatus status = report.getCurrentStatus();
       if ((state.equalsIgnoreCase("pending") && status ==TIPStatus.PENDING) ||
@@ -613,17 +616,19 @@ public class CLI extends Configured implements Tool {
   }
 
   @Private
-  public static String headerPattern = "%23s\t%10s\t%14s\t%12s\t%12s\t%10s\t%15s\t%15s\t%8s\t%8s\t%10s\t%10s\n";
+  public static String headerPattern = "%23s\t%20s\t%10s\t%14s\t%12s\t%12s" +
+      "\t%10s\t%15s\t%15s\t%8s\t%8s\t%10s\t%10s\n";
   @Private
-  public static String dataPattern   = "%23s\t%10s\t%14d\t%12s\t%12s\t%10s\t%15s\t%15s\t%8s\t%8s\t%10s\t%10s\n";
+  public static String dataPattern   = "%23s\t%20s\t%10s\t%14d\t%12s\t%12s" +
+      "\t%10s\t%15s\t%15s\t%8s\t%8s\t%10s\t%10s\n";
   private static String memPattern   = "%dM";
   private static String UNAVAILABLE  = "N/A";
 
   @Private
   public void displayJobList(JobStatus[] jobs, PrintWriter writer) {
     writer.println("Total jobs:" + jobs.length);
-    writer.printf(headerPattern, "JobId", "State", "StartTime", "UserName",
-      "Queue", "Priority", "UsedContainers",
+    writer.printf(headerPattern, "JobId", "JobName", "State", "StartTime",
+      "UserName", "Queue", "Priority", "UsedContainers",
       "RsvdContainers", "UsedMem", "RsvdMem", "NeededMem", "AM info");
     for (JobStatus job : jobs) {
       int numUsedSlots = job.getNumUsedSlots();
@@ -631,10 +636,11 @@ public class CLI extends Configured implements Tool {
       int usedMem = job.getUsedMem();
       int rsvdMem = job.getReservedMem();
       int neededMem = job.getNeededMem();
-      writer.printf(dataPattern,
-          job.getJobID().toString(), job.getState(), job.getStartTime(),
-          job.getUsername(), job.getQueue(), 
-          job.getPriority().name(),
+      int jobNameLength = job.getJobName().length();
+      writer.printf(dataPattern, job.getJobID().toString(),
+          job.getJobName().substring(0, jobNameLength > 20 ? 20 : jobNameLength),
+          job.getState(), job.getStartTime(), job.getUsername(),
+          job.getQueue(), job.getPriority().name(),
           numUsedSlots < 0 ? UNAVAILABLE : numUsedSlots,
           numReservedSlots < 0 ? UNAVAILABLE : numReservedSlots,
           usedMem < 0 ? UNAVAILABLE : String.format(memPattern, usedMem),

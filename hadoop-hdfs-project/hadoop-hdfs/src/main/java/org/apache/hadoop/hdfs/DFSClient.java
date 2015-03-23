@@ -24,6 +24,8 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_BYTES_PER_CHECKSUM_DEFAUL
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_BYTES_PER_CHECKSUM_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_RETRIES_DEFAULT;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_RETRIES_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_INITIAL_DELAY_DEFAULT;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_INITIAL_DELAY_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CLIENT_BLOCK_WRITE_RETRIES_DEFAULT;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CLIENT_BLOCK_WRITE_RETRIES_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CLIENT_CACHED_CONN_RETRY_DEFAULT;
@@ -127,6 +129,7 @@ import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.ChecksumOpt;
 import org.apache.hadoop.fs.ParentNotDirectoryException;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.UnresolvedLinkException;
 import org.apache.hadoop.fs.VolumeId;
@@ -173,6 +176,7 @@ import org.apache.hadoop.hdfs.protocol.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
 import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.UnresolvedPathException;
+import org.apache.hadoop.hdfs.protocol.datatransfer.DataTransferProtoUtil;
 import org.apache.hadoop.hdfs.protocol.datatransfer.IOStreamPair;
 import org.apache.hadoop.hdfs.protocol.datatransfer.Op;
 import org.apache.hadoop.hdfs.protocol.datatransfer.ReplaceDatanodeOnFailure;
@@ -303,6 +307,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     final int nCachedConnRetry;
     final int nBlockWriteRetry;
     final int nBlockWriteLocateFollowingRetry;
+    final int blockWriteLocateFollowingInitialDelayMs;
     final long defaultBlockSize;
     final long prefetchSize;
     final short defaultReplication;
@@ -335,6 +340,8 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     final long shortCircuitCacheStaleThresholdMs;
 
     final long keyProviderCacheExpiryMs;
+    public BlockReaderFactory.FailureInjector brfFailureInjector =
+      new BlockReaderFactory.FailureInjector();
 
     public Conf(Configuration conf) {
       // The hdfsTimeout is currently the same as the ipc timeout 
@@ -412,6 +419,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       nBlockWriteLocateFollowingRetry = conf.getInt(
           DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_RETRIES_KEY,
           DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_RETRIES_DEFAULT);
+      blockWriteLocateFollowingInitialDelayMs = conf.getInt(
+          DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_INITIAL_DELAY_KEY,
+          DFS_CLIENT_BLOCK_WRITE_LOCATEFOLLOWINGBLOCK_INITIAL_DELAY_DEFAULT);
       uMask = FsPermission.getUMask(conf);
       connectToDnViaHostname = conf.getBoolean(DFS_CLIENT_USE_DN_HOSTNAME,
           DFS_CLIENT_USE_DN_HOSTNAME_DEFAULT);
@@ -561,6 +571,11 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
             + ", effective=null");
       }
       return dataChecksum;
+    }
+
+    @VisibleForTesting
+    public int getBlockWriteLocateFollowingInitialDelayMs() {
+      return blockWriteLocateFollowingInitialDelayMs;
     }
   }
  
@@ -870,7 +885,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       if (filesBeingWritten.isEmpty()) {
         return;
       }
-      lastLeaseRenewal = Time.now();
+      lastLeaseRenewal = Time.monotonicNow();
     }
   }
 
@@ -887,7 +902,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
         return true;
       } catch (IOException e) {
         // Abort if the lease has already expired. 
-        final long elapsed = Time.now() - getLastLeaseRenewal();
+        final long elapsed = Time.monotonicNow() - getLastLeaseRenewal();
         if (elapsed > HdfsConstants.LEASE_HARDLIMIT_PERIOD) {
           LOG.warn("Failed to renew lease for " + clientName + " for "
               + (elapsed/1000) + " seconds (>= hard-limit ="
@@ -1005,7 +1020,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
    * @see ClientProtocol#getServerDefaults()
    */
   public FsServerDefaults getServerDefaults() throws IOException {
-    long now = Time.now();
+    long now = Time.monotonicNow();
     if (now - serverDefaultsLastUpdate > SERVER_DEFAULTS_VALIDITY_PERIOD) {
       serverDefaults = namenode.getServerDefaults();
       serverDefaultsLastUpdate = now;
@@ -2218,6 +2233,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
 
     // get block checksum for each block
     long remaining = length;
+    if (src.contains(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR_SEPARATOR)) {
+      remaining = Math.min(length, blockLocations.getFileLength());
+    }
     for(int i = 0; i < locatedblocks.size() && remaining > 0; i++) {
       if (refetchBlocks) {  // refetch to get fresh tokens
         blockLocations = callGetBlockLocations(namenode, src, 0, length);
@@ -2259,15 +2277,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
           final BlockOpResponseProto reply =
             BlockOpResponseProto.parseFrom(PBHelper.vintPrefixed(in));
 
-          if (reply.getStatus() != Status.SUCCESS) {
-            if (reply.getStatus() == Status.ERROR_ACCESS_TOKEN) {
-              throw new InvalidBlockTokenException();
-            } else {
-              throw new IOException("Bad response " + reply + " for block "
-                  + block + " from datanode " + datanodes[j]);
-            }
-          }
-          
+          String logInfo = "for block " + block + " from datanode " + datanodes[j];
+          DataTransferProtoUtil.checkBlockOpStatus(reply, logInfo);
+
           OpBlockChecksumResponseProto checksumData =
             reply.getChecksumResponse();
 
@@ -2424,16 +2436,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
           0, 1, true, CachingStrategy.newDefaultStrategy());
       final BlockOpResponseProto reply =
           BlockOpResponseProto.parseFrom(PBHelper.vintPrefixed(in));
-      
-      if (reply.getStatus() != Status.SUCCESS) {
-        if (reply.getStatus() == Status.ERROR_ACCESS_TOKEN) {
-          throw new InvalidBlockTokenException();
-        } else {
-          throw new IOException("Bad response " + reply + " trying to read "
-              + lb.getBlock() + " from datanode " + dn);
-        }
-      }
-      
+      String logInfo = "trying to read " + lb.getBlock() + " from datanode " + dn;
+      DataTransferProtoUtil.checkBlockOpStatus(reply, logInfo);
+
       return PBHelper.convert(reply.getReadOpChecksumInfo().getChecksum().getType());
     } finally {
       IOUtils.cleanup(null, pair.in, pair.out);
@@ -3049,22 +3054,22 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
    * Sets or resets quotas for a directory.
    * @see ClientProtocol#setQuota(String, long, long, StorageType)
    */
-  void setQuota(String src, long namespaceQuota, long diskspaceQuota) 
+  void setQuota(String src, long namespaceQuota, long storagespaceQuota)
       throws IOException {
     // sanity check
     if ((namespaceQuota <= 0 && namespaceQuota != HdfsConstants.QUOTA_DONT_SET &&
          namespaceQuota != HdfsConstants.QUOTA_RESET) ||
-        (diskspaceQuota <= 0 && diskspaceQuota != HdfsConstants.QUOTA_DONT_SET &&
-         diskspaceQuota != HdfsConstants.QUOTA_RESET)) {
+        (storagespaceQuota <= 0 && storagespaceQuota != HdfsConstants.QUOTA_DONT_SET &&
+         storagespaceQuota != HdfsConstants.QUOTA_RESET)) {
       throw new IllegalArgumentException("Invalid values for quota : " +
-                                         namespaceQuota + " and " + 
-                                         diskspaceQuota);
+                                         namespaceQuota + " and " +
+                                         storagespaceQuota);
                                          
     }
     TraceScope scope = getPathTraceScope("setQuota", src);
     try {
-      // Pass null as storage type for traditional space/namespace quota.
-      namenode.setQuota(src, namespaceQuota, diskspaceQuota, null);
+      // Pass null as storage type for traditional namespace/storagespace quota.
+      namenode.setQuota(src, namespaceQuota, storagespaceQuota, null);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
                                      FileNotFoundException.class,
@@ -3081,12 +3086,12 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
    * Sets or resets quotas by storage type for a directory.
    * @see ClientProtocol#setQuota(String, long, long, StorageType)
    */
-  void setQuotaByStorageType(String src, StorageType type, long spaceQuota)
+  void setQuotaByStorageType(String src, StorageType type, long quota)
       throws IOException {
-    if (spaceQuota <= 0 && spaceQuota != HdfsConstants.QUOTA_DONT_SET &&
-        spaceQuota != HdfsConstants.QUOTA_RESET) {
+    if (quota <= 0 && quota != HdfsConstants.QUOTA_DONT_SET &&
+        quota != HdfsConstants.QUOTA_RESET) {
       throw new IllegalArgumentException("Invalid values for quota :" +
-        spaceQuota);
+        quota);
     }
     if (type == null) {
       throw new IllegalArgumentException("Invalid storage type(null)");
@@ -3095,14 +3100,17 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       throw new IllegalArgumentException("Don't support Quota for storage type : "
         + type.toString());
     }
+    TraceScope scope = getPathTraceScope("setQuotaByStorageType", src);
     try {
-      namenode.setQuota(src, HdfsConstants.QUOTA_DONT_SET, spaceQuota, type);
+      namenode.setQuota(src, HdfsConstants.QUOTA_DONT_SET, quota, type);
     } catch (RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
         FileNotFoundException.class,
         QuotaByStorageTypeExceededException.class,
         UnresolvedPathException.class,
         SnapshotAccessControlException.class);
+    } finally {
+      scope.close();
     }
   }
   /**

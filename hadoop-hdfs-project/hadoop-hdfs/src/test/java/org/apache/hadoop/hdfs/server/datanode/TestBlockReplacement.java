@@ -36,13 +36,13 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.DatanodeReportType;
@@ -73,7 +73,7 @@ public class TestBlockReplacement {
     long bandwidthPerSec = 1024*1024L;
     final long TOTAL_BYTES =6*bandwidthPerSec; 
     long bytesToSend = TOTAL_BYTES; 
-    long start = Time.now();
+    long start = Time.monotonicNow();
     DataTransferThrottler throttler = new DataTransferThrottler(bandwidthPerSec);
     long totalBytes = 0L;
     long bytesSent = 1024*512L; // 0.5MB
@@ -86,7 +86,7 @@ public class TestBlockReplacement {
       Thread.sleep(1000);
     } catch (InterruptedException ignored) {}
     throttler.throttle(bytesToSend);
-    long end = Time.now();
+    long end = Time.monotonicNow();
     assertTrue(totalBytes*1000/(end-start)<=bandwidthPerSec);
   }
   
@@ -254,7 +254,7 @@ public class TestBlockReplacement {
       throws IOException, TimeoutException {
     boolean notDone;
     final long TIMEOUT = 20000L;
-    long starttime = Time.now();
+    long starttime = Time.monotonicNow();
     long failtime = starttime + TIMEOUT;
     do {
       try {
@@ -279,7 +279,7 @@ public class TestBlockReplacement {
           }
         }
       }
-      if (Time.now() > failtime) {
+      if (Time.monotonicNow() > failtime) {
         String expectedNodesList = "";
         String currentNodesList = "";
         for (DatanodeInfo dn : includeNodes) 

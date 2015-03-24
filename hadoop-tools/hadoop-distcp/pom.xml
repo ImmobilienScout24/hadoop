@@ -101,6 +101,68 @@
     </dependency>
   </dependencies>
 
+    <profiles>
+        <profile>
+            <id>rpm</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>rpm-maven-plugin</artifactId>
+                        <version>2.1-alpha-4.is24</version>
+                        <extensions>true</extensions>
+                        <executions>
+                            <execution>
+                                <phase>install</phase>
+                                <goals>
+                                    <goal>rpm</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <copyright>Proprietary</copyright>
+                            <group>is24</group>
+                            <!--suppress MavenModelInspection -->
+                            <release>${env.BUILD_NUMBER}</release>
+                            <version>${project.version}</version>
+                            <mappings>
+                                <mapping>
+                                    <directory>/usr/lib/hadoop-mapreduce/</directory>
+                                    <filemode>777</filemode>
+                                    <username>root</username>
+                                    <groupname>root</groupname>
+                                    <sources>
+                                        <source>
+                                            <location>target/${project.artifactId}-${project.version}.jar</location>
+                                        </source>
+                                    </sources>
+                                </mapping>
+                            </mappings>
+                            <requires>
+                                <require>hadoop-mapreduce</require>
+                            </requires>
+                            <postinstallScriptlet>
+                                <script>
+                                    ln -sf /usr/lib/hadoop-mapreduce/%{name}-%{version}.jar /usr/lib/hadoop-mapreduce/hadoop-distcp.jar
+                                </script>
+                            </postinstallScriptlet>
+                            <triggers>
+                                <installTrigger>
+                                    <script>
+                                        ln -sf /usr/lib/hadoop-mapreduce/%{name}-%{version}.jar /usr/lib/hadoop-mapreduce/hadoop-distcp.jar
+                                    </script>
+                                    <triggers>
+                                        <trigger>hadoop-mapreduce</trigger>
+                                    </triggers>
+                                </installTrigger>
+                            </triggers>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+    
   <build>
     <resources>
       <resource>

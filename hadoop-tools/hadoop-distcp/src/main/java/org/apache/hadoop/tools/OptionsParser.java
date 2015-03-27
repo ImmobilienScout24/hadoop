@@ -148,6 +148,10 @@ public class OptionsParser {
       option.setDeleteMissing(true);
     }
 
+    if (command.hasOption(DistCpOptionSwitch.LIST_MISSING.getSwitch())) {
+      option.setListMissing(true);
+    }
+
     if (command.hasOption(DistCpOptionSwitch.SKIP_CRC.getSwitch())) {
       option.setSkipCRC(true);
     }

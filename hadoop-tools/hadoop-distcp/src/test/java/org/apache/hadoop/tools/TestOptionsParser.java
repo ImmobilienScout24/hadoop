@@ -435,7 +435,7 @@ public class TestOptionsParser {
     DistCpOptions option = new DistCpOptions(new Path("abc"), new Path("xyz"));
     String val = "DistCpOptions{atomicCommit=false, syncFolder=false, deleteMissing=false, " +
       "ignoreFailures=false, maxMaps=20, sslConfigurationFile='null', copyStrategy='uniformsize', " +
-      "sourceFileListing=abc, sourcePaths=null, targetPath=xyz, targetPathExists=true, " +
+      "sourceFileListing=abc, sourcePaths=null, targetPath=xyz, targetPathExists=true, listMissing=false " +
       "preserveRawXattrs=false}";
     Assert.assertEquals(val, option.toString());
     Assert.assertNotSame(DistCpOptionSwitch.ATOMIC_COMMIT.toString(),
@@ -722,5 +722,25 @@ public class TestOptionsParser {
       GenericTestUtils.assertExceptionContains(
         "Append is disallowed when skipping CRC", e);
     }
+  }
+
+  @Test
+  public void testListMissingOption() throws Exception {
+    DistCpOptions options = OptionsParser.parse(
+      new String[] {
+        "hdfs://localhost:8020/source/first",
+        "hdfs://localhost:8020/target/"
+      });
+    Assert.assertFalse(options.shouldListMissing());
+
+    options = OptionsParser.parse(
+      new String[] {
+        "-listMissing",
+        "hdfs://localhost:8020/source/first",
+        "hdfs://localhost:8020/target/"
+      });
+    Assert.assertTrue(options.shouldListMissing());
+
+
   }
 }

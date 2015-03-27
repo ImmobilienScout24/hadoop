@@ -41,6 +41,7 @@ public class DistCpOptions {
   private boolean append = false;
   private boolean skipCRC = false;
   private boolean blocking = true;
+  private boolean listMissing = false;
 
   private int maxMaps = DistCpConstants.DEFAULT_MAPS;
   private int mapBandwidth = DistCpConstants.DEFAULT_BANDWIDTH_MB;
@@ -139,6 +140,7 @@ public class DistCpOptions {
       this.sourcePaths = that.getSourcePaths();
       this.targetPath = that.getTargetPath();
       this.targetPathExists = that.getTargetPathExists();
+      this.listMissing = that.listMissing;
     }
   }
 
@@ -199,11 +201,20 @@ public class DistCpOptions {
     this.deleteMissing = deleteMissing;
   }
 
+  public boolean shouldListMissing() {
+    return listMissing;
+  }
+
+  public void setListMissing(boolean listMissing) {
+    validate(DistCpOptionSwitch.LIST_MISSING, listMissing);
+    this.listMissing = listMissing;
+  }
+
   /**
-   * Should failures be logged and ignored during copy?
-   *
-   * @return true if failures are to be logged and ignored. false otherwise
-   */
+  * Should failures be logged and ignored during copy?
+  *
+  * @return true if failures are to be logged and ignored. false otherwise
+  */
   public boolean shouldIgnoreFailures() {
     return ignoreFailures;
   }
@@ -509,6 +520,7 @@ public class DistCpOptions {
     boolean atomicCommit = ((option == DistCpOptionSwitch.ATOMIC_COMMIT) ? value : this.atomicCommit);
     boolean skipCRC = ((option == DistCpOptionSwitch.SKIP_CRC) ? value : this.skipCRC);
     boolean append = ((option == DistCpOptionSwitch.APPEND) ? value : this.append);
+    boolean listMissing = ((option == DistCpOptionSwitch.LIST_MISSING) ? value : this.listMissing);
 
     if (syncFolder && atomicCommit) {
       throw new IllegalArgumentException("Atomic commit can't be used with " +
@@ -563,6 +575,8 @@ public class DistCpOptions {
       String.valueOf(mapBandwidth));
     DistCpOptionSwitch.addToConf(conf, DistCpOptionSwitch.PRESERVE_STATUS,
       DistCpUtils.packAttributes(preserveStatus));
+    DistCpOptionSwitch.addToConf(conf, DistCpOptionSwitch.LIST_MISSING,
+      String.valueOf(listMissing));
   }
 
   /**
@@ -584,6 +598,7 @@ public class DistCpOptions {
       ", sourcePaths=" + sourcePaths +
       ", targetPath=" + targetPath +
       ", targetPathExists=" + targetPathExists +
+      ", listMissing=" + listMissing +
       ", preserveRawXattrs=" + preserveRawXattrs +
       '}';
   }

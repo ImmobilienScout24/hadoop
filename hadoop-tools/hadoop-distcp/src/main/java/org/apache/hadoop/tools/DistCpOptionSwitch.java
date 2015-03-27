@@ -77,6 +77,15 @@ public enum DistCpOptionSwitch {
     new Option("delete", false, "Delete from target, " +
       "files missing in source")),
 
+
+  /**
+   * Create a list of files that are missing in the source and
+   * exist in the target.
+   */
+  LIST_MISSING(DistCpConstants.CONF_LABEL_LIST_MISSING,
+    new Option("listMissing", false, "Create a list of files that " +
+      "are missing in source and exist in target")),
+
   /**
    * Configuration file to use with hftps:// for securely copying
    * files across clusters. Typically the configuration file contains

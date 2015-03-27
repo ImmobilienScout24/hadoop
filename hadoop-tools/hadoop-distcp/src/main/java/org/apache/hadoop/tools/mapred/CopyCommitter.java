@@ -95,6 +95,9 @@ public class CopyCommitter extends FileOutputCommitter {
     }
 
     try {
+      if (conf.getBoolean(DistCpConstants.CONF_LABEL_LIST_MISSING, false)) {
+        listMissing(conf);
+      }
       if (conf.getBoolean(DistCpConstants.CONF_LABEL_DELETE_MISSING, false)) {
         deleteMissing(conf);
       } else if (conf.getBoolean(DistCpConstants.CONF_LABEL_ATOMIC_COPY, false)) {
@@ -216,6 +219,13 @@ public class CopyCommitter extends FileOutputCommitter {
       IOUtils.closeStream(sourceReader);
     }
     LOG.info("Preserved status on " + preservedEntries + " dir entries on target");
+  }
+
+  // This method creates a file containing the names of all  "extra" files
+  // from the target, if they're not available at the source
+  private void listMissing(Configuration conf) {
+    LOG.info("-listMissing option is enabled. Creating a list of all entries from " +
+      "target that are missing in source");
   }
 
   // This method deletes "extra" files from the target, if they're not

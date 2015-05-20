@@ -23,12 +23,12 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.security.Credentials;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+
 
 /**
  * FileBasedCopyListing implements the CopyListing interface,
@@ -36,8 +36,8 @@ import java.util.List;
  * by iterating over all source paths mentioned in a specified input-file.
  */
 public class FileBasedCopyListing extends CopyListing {
-
   private final CopyListing globbedListing;
+
   /**
    * Constructor, to initialize base-class.
    * @param configuration The input Configuration object.
@@ -51,8 +51,7 @@ public class FileBasedCopyListing extends CopyListing {
 
   /** {@inheritDoc} */
   @Override
-  protected void validatePaths(DistCpOptions options)
-      throws IOException, InvalidInputException {
+  protected void validatePaths(DistCpOptions options) throws IOException, InvalidInputException {
   }
 
   /**
@@ -75,6 +74,7 @@ public class FileBasedCopyListing extends CopyListing {
     BufferedReader input = null;
     try {
       input = new BufferedReader(new InputStreamReader(fs.open(sourceListing)));
+
       String line = input.readLine();
       while (line != null) {
         result.add(new Path(line));

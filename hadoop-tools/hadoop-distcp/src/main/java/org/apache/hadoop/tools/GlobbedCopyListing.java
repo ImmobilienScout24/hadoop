@@ -25,10 +25,10 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.security.Credentials;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
+
 
 /**
  * GlobbedCopyListing implements the CopyListing interface, to create the copy
@@ -38,6 +38,7 @@ public class GlobbedCopyListing extends CopyListing {
   private static final Log LOG = LogFactory.getLog(GlobbedCopyListing.class);
 
   private final CopyListing simpleListing;
+
   /**
    * Constructor, to initialize the configuration.
    * @param configuration The input Configuration object.
@@ -46,13 +47,12 @@ public class GlobbedCopyListing extends CopyListing {
    */
   public GlobbedCopyListing(Configuration configuration, Credentials credentials) {
     super(configuration, credentials);
-    simpleListing = new SimpleCopyListing(getConf(), credentials) ;
+    simpleListing = new SimpleCopyListing(getConf(), credentials);
   }
 
   /** {@inheritDoc} */
   @Override
-  protected void validatePaths(DistCpOptions options)
-      throws IOException, InvalidInputException {
+  protected void validatePaths(DistCpOptions options) throws IOException, InvalidInputException {
   }
 
   /**
@@ -66,22 +66,21 @@ public class GlobbedCopyListing extends CopyListing {
   @Override
   public void doBuildListing(Path pathToListingFile,
                              DistCpOptions options) throws IOException {
-
     List<Path> globbedPaths = new ArrayList<Path>();
     if (options.getSourcePaths().isEmpty()) {
-      throw new InvalidInputException("Nothing to process. Source paths::EMPTY");  
+      throw new InvalidInputException("Nothing to process. Source paths::EMPTY");
     }
 
     for (Path p : options.getSourcePaths()) {
       FileSystem fs = p.getFileSystem(getConf());
       FileStatus[] inputs = fs.globStatus(p);
 
-      if(inputs != null && inputs.length > 0) {
-        for (FileStatus onePath: inputs) {
+      if ((inputs != null) && (inputs.length > 0)) {
+        for (FileStatus onePath : inputs) {
           globbedPaths.add(onePath.getPath());
         }
       } else {
-        throw new InvalidInputException(p + " doesn't exist");        
+        throw new InvalidInputException(p + " doesn't exist");
       }
     }
 

@@ -20,12 +20,15 @@ package org.apache.hadoop.tools.mapred;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.tools.DistCpConstants;
-
 import java.io.IOException;
+
 
 /**
  * The CopyOutputFormat is the Hadoop OutputFormat used in DistCp.
@@ -36,7 +39,6 @@ import java.io.IOException;
  * @param <V>
  */
 public class CopyOutputFormat<K, V> extends TextOutputFormat<K, V> {
-
   /**
    * Setter for the working directory for DistCp (where files will be copied
    * before they are moved to the final commit-directory.)
@@ -45,7 +47,7 @@ public class CopyOutputFormat<K, V> extends TextOutputFormat<K, V> {
    */
   public static void setWorkingDirectory(Job job, Path workingDirectory) {
     job.getConfiguration().set(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH,
-        workingDirectory.toString());
+      workingDirectory.toString());
   }
 
   /**
@@ -56,7 +58,7 @@ public class CopyOutputFormat<K, V> extends TextOutputFormat<K, V> {
    */
   public static void setCommitDirectory(Job job, Path commitDirectory) {
     job.getConfiguration().set(DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH,
-        commitDirectory.toString());
+      commitDirectory.toString());
   }
 
   /**
@@ -71,7 +73,7 @@ public class CopyOutputFormat<K, V> extends TextOutputFormat<K, V> {
 
   private static Path getWorkingDirectory(Configuration conf) {
     String workingDirectory = conf.get(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH);
-    if (workingDirectory == null || workingDirectory.isEmpty()) {
+    if ((workingDirectory == null) || workingDirectory.isEmpty()) {
       return null;
     } else {
       return new Path(workingDirectory);
@@ -90,7 +92,7 @@ public class CopyOutputFormat<K, V> extends TextOutputFormat<K, V> {
 
   private static Path getCommitDirectory(Configuration conf) {
     String commitDirectory = conf.get(DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH);
-    if (commitDirectory == null || commitDirectory.isEmpty()) {
+    if ((commitDirectory == null) || commitDirectory.isEmpty()) {
       return null;
     } else {
       return new Path(commitDirectory);
@@ -119,6 +121,6 @@ public class CopyOutputFormat<K, V> extends TextOutputFormat<K, V> {
 
     // get delegation token for outDir's file system
     TokenCache.obtainTokensForNamenodes(context.getCredentials(),
-                                        new Path[] {workingPath}, conf);
+      new Path[] { workingPath }, conf);
   }
 }

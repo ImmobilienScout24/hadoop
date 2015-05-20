@@ -26,7 +26,15 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.InputFormat;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.mapreduce.lib.output.NullOutputFormat;
@@ -37,10 +45,19 @@ import org.apache.hadoop.tools.DistCpOptions.FileAttribute;
 import org.apache.hadoop.tools.GlobbedCopyListing;
 import org.apache.hadoop.tools.util.TestDistCpUtils;
 import org.apache.hadoop.security.Credentials;
-import org.junit.*;
-
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.Stack;
+
 
 public class TestCopyCommitter {
   private static final Log LOG = LogFactory.getLog(TestCopyCommitter.class);
@@ -67,8 +84,7 @@ public class TestCopyCommitter {
   public static void create() throws IOException {
     config = getJobForClient().getConfiguration();
     config.setLong(DistCpConstants.CONF_LABEL_TOTAL_BYTES_TO_BE_COPIED, 0);
-    cluster = new MiniDFSCluster.Builder(config).numDataNodes(1).format(true)
-                      .build();
+    cluster = new MiniDFSCluster.Builder(config).numDataNodes(1).format(true).build();
   }
 
   @AfterClass
@@ -81,6 +97,7 @@ public class TestCopyCommitter {
   @Before
   public void createMetaFolder() {
     config.set(DistCpConstants.CONF_LABEL_META_FOLDER, "/meta");
+
     Path meta = new Path("/meta");
     try {
       cluster.getFileSystem().mkdirs(meta);
@@ -108,7 +125,7 @@ public class TestCopyCommitter {
   public void testNoCommitAction() {
     TaskAttemptContext taskAttemptContext = getTaskAttemptContext(config);
     JobContext jobContext = new JobContextImpl(taskAttemptContext.getConfiguration(),
-        taskAttemptContext.getTaskAttemptID().getJobID());
+      taskAttemptContext.getTaskAttemptID().getJobID());
     try {
       OutputCommitter committer = new CopyCommitter(null, taskAttemptContext);
       committer.commitJob(jobContext);
@@ -127,7 +144,7 @@ public class TestCopyCommitter {
   public void testPreserveStatus() {
     TaskAttemptContext taskAttemptContext = getTaskAttemptContext(config);
     JobContext jobContext = new JobContextImpl(taskAttemptContext.getConfiguration(),
-        taskAttemptContext.getTaskAttemptID().getJobID());
+      taskAttemptContext.getTaskAttemptID().getJobID());
     Configuration conf = jobContext.getConfiguration();
 
 
@@ -137,17 +154,18 @@ public class TestCopyCommitter {
     try {
       OutputCommitter committer = new CopyCommitter(null, taskAttemptContext);
       fs = FileSystem.get(conf);
+
       FsPermission sourcePerm = new FsPermission((short) 511);
       FsPermission initialPerm = new FsPermission((short) 448);
       sourceBase = TestDistCpUtils.createTestSetup(fs, sourcePerm);
       targetBase = TestDistCpUtils.createTestSetup(fs, initialPerm);
 
       DistCpOptions options = new DistCpOptions(Arrays.asList(new Path(sourceBase)),
-          new Path("/out"));
+        new Path("/out"));
       options.preserve(FileAttribute.PERMISSION);
       options.appendToConf(conf);
       options.setTargetPathExists(false);
-      
+
       CopyListing listing = new GlobbedCopyListing(conf, CREDENTIALS);
       Path listingFile = new Path("/tmp1/" + String.valueOf(rand.nextLong()));
       listing.buildListing(listingFile, options);
@@ -179,7 +197,7 @@ public class TestCopyCommitter {
   public void testDeleteMissing() {
     TaskAttemptContext taskAttemptContext = getTaskAttemptContext(config);
     JobContext jobContext = new JobContextImpl(taskAttemptContext.getConfiguration(),
-        taskAttemptContext.getTaskAttemptID().getJobID());
+      taskAttemptContext.getTaskAttemptID().getJobID());
     Configuration conf = jobContext.getConfiguration();
 
     String sourceBase;
@@ -190,11 +208,12 @@ public class TestCopyCommitter {
       fs = FileSystem.get(conf);
       sourceBase = TestDistCpUtils.createTestSetup(fs, FsPermission.getDefault());
       targetBase = TestDistCpUtils.createTestSetup(fs, FsPermission.getDefault());
+
       String targetBaseAdd = TestDistCpUtils.createTestSetup(fs, FsPermission.getDefault());
       fs.rename(new Path(targetBaseAdd), new Path(targetBase));
 
       DistCpOptions options = new DistCpOptions(Arrays.asList(new Path(sourceBase)),
-          new Path("/out"));
+        new Path("/out"));
       options.setSyncFolder(true);
       options.setDeleteMissing(true);
       options.appendToConf(conf);
@@ -235,7 +254,7 @@ public class TestCopyCommitter {
   public void testDeleteMissingFlatInterleavedFiles() {
     TaskAttemptContext taskAttemptContext = getTaskAttemptContext(config);
     JobContext jobContext = new JobContextImpl(taskAttemptContext.getConfiguration(),
-        taskAttemptContext.getTaskAttemptID().getJobID());
+      taskAttemptContext.getTaskAttemptID().getJobID());
     Configuration conf = jobContext.getConfiguration();
 
 
@@ -262,8 +281,8 @@ public class TestCopyCommitter {
       TestDistCpUtils.createFile(fs, targetBase + "/9");
       TestDistCpUtils.createFile(fs, targetBase + "/A");
 
-      DistCpOptions options = new DistCpOptions(Arrays.asList(new Path(sourceBase)), 
-          new Path("/out"));
+      DistCpOptions options = new DistCpOptions(Arrays.asList(new Path(sourceBase)),
+        new Path("/out"));
       options.setSyncFolder(true);
       options.setDeleteMissing(true);
       options.appendToConf(conf);
@@ -301,7 +320,7 @@ public class TestCopyCommitter {
   public void testAtomicCommitMissingFinal() {
     TaskAttemptContext taskAttemptContext = getTaskAttemptContext(config);
     JobContext jobContext = new JobContextImpl(taskAttemptContext.getConfiguration(),
-        taskAttemptContext.getTaskAttemptID().getJobID());
+      taskAttemptContext.getTaskAttemptID().getJobID());
     Configuration conf = jobContext.getConfiguration();
 
     String workPath = "/tmp1/" + String.valueOf(rand.nextLong());
@@ -341,7 +360,7 @@ public class TestCopyCommitter {
   public void testAtomicCommitExistingFinal() {
     TaskAttemptContext taskAttemptContext = getTaskAttemptContext(config);
     JobContext jobContext = new JobContextImpl(taskAttemptContext.getConfiguration(),
-        taskAttemptContext.getTaskAttemptID().getJobID());
+      taskAttemptContext.getTaskAttemptID().getJobID());
     Configuration conf = jobContext.getConfiguration();
 
 
@@ -363,7 +382,7 @@ public class TestCopyCommitter {
       try {
         committer.commitJob(jobContext);
         Assert.fail("Should not be able to atomic-commit to pre-existing path.");
-      } catch(Exception exception) {
+      } catch (Exception exception) {
         Assert.assertTrue(fs.exists(new Path(workPath)));
         Assert.assertTrue(fs.exists(new Path(finalPath)));
         LOG.info("Atomic-commit Test pass.");
@@ -381,7 +400,7 @@ public class TestCopyCommitter {
 
   private TaskAttemptContext getTaskAttemptContext(Configuration conf) {
     return new TaskAttemptContextImpl(conf,
-        new TaskAttemptID("200707121733", 1, TaskType.MAP, 1, 1));
+      new TaskAttemptID("200707121733", 1, TaskType.MAP, 1, 1));
   }
 
   private boolean checkDirectoryPermissions(FileSystem fs, String targetBase,
@@ -392,9 +411,14 @@ public class TestCopyCommitter {
     stack.push(base);
     while (!stack.isEmpty()) {
       Path file = stack.pop();
-      if (!fs.exists(file)) continue;
+      if (!fs.exists(file)) {
+        continue;
+      }
+
       FileStatus[] fStatus = fs.listStatus(file);
-      if (fStatus == null || fStatus.length == 0) continue;
+      if ((fStatus == null) || (fStatus.length == 0)) {
+        continue;
+      }
 
       for (FileStatus status : fStatus) {
         if (status.isDirectory()) {
@@ -408,15 +432,13 @@ public class TestCopyCommitter {
 
   private static class NullInputFormat extends InputFormat {
     @Override
-    public List getSplits(JobContext context)
-        throws IOException, InterruptedException {
+    public List getSplits(JobContext context) throws IOException, InterruptedException {
       return Collections.EMPTY_LIST;
     }
 
     @Override
     public RecordReader createRecordReader(InputSplit split,
-                                           TaskAttemptContext context)
-        throws IOException, InterruptedException {
+                                           TaskAttemptContext context) throws IOException, InterruptedException {
       return null;
     }
   }

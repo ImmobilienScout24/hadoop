@@ -22,13 +22,11 @@ import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.junit.Assert;
 import org.junit.Test;
-
 import java.util.concurrent.TimeUnit;
 
+
 public class TestRetriableCommand {
-
   private static class MyRetriableCommand extends RetriableCommand {
-
     private int succeedAfter;
     private int retryCount = 0;
 
@@ -44,8 +42,9 @@ public class TestRetriableCommand {
 
     @Override
     protected Object doExecute(Object... arguments) throws Exception {
-      if (++retryCount < succeedAfter)
+      if (++retryCount < succeedAfter) {
         throw new Exception("Transient failure#" + retryCount);
+      }
       return 0;
     }
   }
@@ -55,8 +54,7 @@ public class TestRetriableCommand {
     try {
       new MyRetriableCommand(5).execute(0);
       Assert.assertTrue(false);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       Assert.assertTrue(true);
     }
 
@@ -64,17 +62,15 @@ public class TestRetriableCommand {
     try {
       new MyRetriableCommand(3).execute(0);
       Assert.assertTrue(true);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       Assert.assertTrue(false);
     }
 
     try {
-      new MyRetriableCommand(5, RetryPolicies.
-          retryUpToMaximumCountWithFixedSleep(5, 0, TimeUnit.MILLISECONDS)).execute(0);
+      new MyRetriableCommand(5, RetryPolicies.retryUpToMaximumCountWithFixedSleep(5, 0, TimeUnit.MILLISECONDS)).execute(
+        0);
       Assert.assertTrue(true);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       Assert.assertTrue(false);
     }
   }

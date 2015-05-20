@@ -27,13 +27,12 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.tools.util.DistCpUtils;
 import org.apache.hadoop.security.Credentials;
-
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URI;
 import java.util.Set;
-
 import com.google.common.collect.Sets;
+
 
 /**
  * The CopyListing abstraction is responsible for how the list of
@@ -44,7 +43,6 @@ import com.google.common.collect.Sets;
  * all the paths being fully qualified.
  */
 public abstract class CopyListing extends Configured {
-
   private Credentials credentials;
 
   /**
@@ -72,7 +70,7 @@ public abstract class CopyListing extends Configured {
    *
    * TARGET DOES NOT EXIST: Key-"", Value-FileStatus(/tmp/file1)
    * TARGET IS FILE       : Key-"", Value-FileStatus(/tmp/file1)
-   * TARGET IS DIR        : Key-"/file1", Value-FileStatus(/tmp/file1)  
+   * TARGET IS DIR        : Key-"/file1", Value-FileStatus(/tmp/file1)
    *
    * @param pathToListFile - Output file where the listing would be stored
    * @param options - Input options to distcp
@@ -82,6 +80,7 @@ public abstract class CopyListing extends Configured {
                                  DistCpOptions options) throws IOException {
     validatePaths(options);
     doBuildListing(pathToListFile, options);
+
     Configuration config = getConf();
 
     config.set(DistCpConstants.CONF_LABEL_LISTING_FILE_PATH, pathToListFile.toString());
@@ -96,10 +95,9 @@ public abstract class CopyListing extends Configured {
    *
    * @param options - Input options
    * @throws InvalidInputException: If inputs are invalid
-   * @throws IOException: any Exception with FS 
+   * @throws IOException: any Exception with FS
    */
-  protected abstract void validatePaths(DistCpOptions options)
-      throws IOException, InvalidInputException;
+  protected abstract void validatePaths(DistCpOptions options) throws IOException, InvalidInputException;
 
   /**
    * The interface to be implemented by sub-classes, to create the source/target file listing.
@@ -136,16 +134,15 @@ public abstract class CopyListing extends Configured {
    * @throws IOException - Any issues while checking for duplicates and throws
    * @throws DuplicateFileException - if there are duplicates
    */
-  private void validateFinalListing(Path pathToListFile, DistCpOptions options)
-      throws DuplicateFileException, IOException {
-
+  private void validateFinalListing(Path pathToListFile, DistCpOptions options) throws DuplicateFileException,
+                                                                                       IOException {
     Configuration config = getConf();
     FileSystem fs = pathToListFile.getFileSystem(config);
 
     Path sortedList = DistCpUtils.sortListing(fs, config, pathToListFile);
 
     SequenceFile.Reader reader = new SequenceFile.Reader(
-                          config, SequenceFile.Reader.file(sortedList));
+      config, SequenceFile.Reader.file(sortedList));
     try {
       Text lastKey = new Text("*"); //source relative path can never hold *
       CopyListingFileStatus lastFileStatus = new CopyListingFileStatus();
@@ -158,7 +155,7 @@ public abstract class CopyListing extends Configured {
           CopyListingFileStatus currentFileStatus = new CopyListingFileStatus();
           reader.getCurrentValue(currentFileStatus);
           throw new DuplicateFileException("File " + lastFileStatus.getPath() + " and " +
-              currentFileStatus.getPath() + " would cause duplicates. Aborting");
+            currentFileStatus.getPath() + " would cause duplicates. Aborting");
         }
         reader.getCurrentValue(lastFileStatus);
         if (options.shouldPreserve(DistCpOptions.FileAttribute.ACL)) {
@@ -222,27 +219,25 @@ public abstract class CopyListing extends Configured {
    */
   public static CopyListing getCopyListing(Configuration configuration,
                                            Credentials credentials,
-                                           DistCpOptions options)
-      throws IOException {
-
-    String copyListingClassName = configuration.get(DistCpConstants.
-        CONF_LABEL_COPY_LISTING_CLASS, "");
+                                           DistCpOptions options) throws IOException {
+    String copyListingClassName = configuration.get(DistCpConstants.CONF_LABEL_COPY_LISTING_CLASS, "");
     Class<? extends CopyListing> copyListingClass;
     try {
-      if (! copyListingClassName.isEmpty()) {
-        copyListingClass = configuration.getClass(DistCpConstants.
-            CONF_LABEL_COPY_LISTING_CLASS, GlobbedCopyListing.class,
-            CopyListing.class);
+      if (!copyListingClassName.isEmpty()) {
+        copyListingClass = configuration.getClass(DistCpConstants.CONF_LABEL_COPY_LISTING_CLASS,
+          GlobbedCopyListing.class,
+          CopyListing.class);
       } else {
         if (options.getSourceFileListing() == null) {
-            copyListingClass = GlobbedCopyListing.class;
+          copyListingClass = GlobbedCopyListing.class;
         } else {
-            copyListingClass = FileBasedCopyListing.class;
+          copyListingClass = FileBasedCopyListing.class;
         }
       }
       copyListingClassName = copyListingClass.getName();
-      Constructor<? extends CopyListing> constructor = copyListingClass.
-          getDeclaredConstructor(Configuration.class, Credentials.class);
+
+      Constructor<? extends CopyListing> constructor = copyListingClass.getDeclaredConstructor(Configuration.class,
+        Credentials.class);
       return constructor.newInstance(configuration, credentials);
     } catch (Exception e) {
       throw new IOException("Unable to instantiate " + copyListingClassName, e);
@@ -266,7 +261,7 @@ public abstract class CopyListing extends Configured {
       super(message);
     }
   }
-  
+
   public static class XAttrsNotSupportedException extends RuntimeException {
     public XAttrsNotSupportedException(String message) {
       super(message);

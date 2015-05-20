@@ -23,7 +23,6 @@ import java.io.OutputStream;
 import java.util.EnumSet;
 import java.util.Random;
 import java.util.Stack;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -41,6 +40,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+
 public class TestDistCpUtils {
   private static final Log LOG = LogFactory.getLog(TestDistCpUtils.class);
 
@@ -49,13 +49,10 @@ public class TestDistCpUtils {
   private static final FsPermission fullPerm = new FsPermission((short) 777);
   private static final FsPermission almostFullPerm = new FsPermission((short) 666);
   private static final FsPermission noPerm = new FsPermission((short) 0);
-  
+
   @BeforeClass
   public static void create() throws IOException {
-    cluster = new MiniDFSCluster.Builder(config)
-        .numDataNodes(1)
-        .format(true)
-        .build(); 
+    cluster = new MiniDFSCluster.Builder(config).numDataNodes(1).format(true).build();
   }
 
   @AfterClass
@@ -133,12 +130,11 @@ public class TestDistCpUtils {
   @Test
   public void testPreserveDefaults() throws IOException {
     FileSystem fs = FileSystem.get(config);
-    
-    // preserve replication, block size, user, group, permission, 
-    // checksum type and timestamps    
-    EnumSet<FileAttribute> attributes = 
-        DistCpUtils.unpackAttributes(
-            DistCpOptionSwitch.PRESERVE_STATUS_DEFAULT.substring(1));
+
+    // preserve replication, block size, user, group, permission,
+    // checksum type and timestamps
+    EnumSet<FileAttribute> attributes = DistCpUtils.unpackAttributes(
+      DistCpOptionSwitch.PRESERVE_STATUS_DEFAULT.substring(1));
 
     Path dst = new Path("/tmp/dest2");
     Path src = new Path("/tmp/src2");
@@ -155,7 +151,7 @@ public class TestDistCpUtils {
     fs.setOwner(dst, "nobody", "nobody-group");
     fs.setTimes(dst, 100, 100);
     fs.setReplication(dst, (short) 2);
-    
+
     CopyListingFileStatus srcStatus = new CopyListingFileStatus(fs.getFileStatus(src));
 
     DistCpUtils.preserve(fs, dst, srcStatus, attributes, false);
@@ -170,7 +166,7 @@ public class TestDistCpUtils {
     Assert.assertTrue(srcStatus.getModificationTime() == dstStatus.getModificationTime());
     Assert.assertTrue(srcStatus.getReplication() == dstStatus.getReplication());
   }
-  
+
   @Test
   public void testPreserveNothingOnDirectory() throws IOException {
     FileSystem fs = FileSystem.get(config);
@@ -321,6 +317,7 @@ public class TestDistCpUtils {
     Assert.assertFalse(srcStatus.getPermission().equals(dstStatus.getPermission()));
     Assert.assertFalse(srcStatus.getOwner().equals(dstStatus.getOwner()));
     Assert.assertFalse(srcStatus.getGroup().equals(dstStatus.getGroup()));
+
     // Replication shouldn't apply to dirs so this should still be 0 == 0
     Assert.assertTrue(srcStatus.getReplication() == dstStatus.getReplication());
   }
@@ -578,9 +575,10 @@ public class TestDistCpUtils {
   public void testPreserveOnFileUpwardRecursion() throws IOException {
     FileSystem fs = FileSystem.get(config);
     EnumSet<FileAttribute> attributes = EnumSet.allOf(FileAttribute.class);
+
     // Remove ACL because tests run with dfs.namenode.acls.enabled false
     attributes.remove(FileAttribute.ACL);
-    
+
     Path src = new Path("/tmp/src2");
     Path f0 = new Path("/f0");
     Path f1 = new Path("/d1/f1");
@@ -680,7 +678,7 @@ public class TestDistCpUtils {
   public void testPreserveOnDirectoryUpwardRecursion() throws IOException {
     FileSystem fs = FileSystem.get(config);
     EnumSet<FileAttribute> attributes = EnumSet.allOf(FileAttribute.class);
-    
+
     // Remove ACL because tests run with dfs.namenode.acls.enabled false
     attributes.remove(FileAttribute.ACL);
 
@@ -783,6 +781,7 @@ public class TestDistCpUtils {
   public void testPreserveOnFileDownwardRecursion() throws IOException {
     FileSystem fs = FileSystem.get(config);
     EnumSet<FileAttribute> attributes = EnumSet.allOf(FileAttribute.class);
+
     // Remove ACL because tests run with dfs.namenode.acls.enabled false
     attributes.remove(FileAttribute.ACL);
 
@@ -885,6 +884,7 @@ public class TestDistCpUtils {
   public void testPreserveOnDirectoryDownwardRecursion() throws IOException {
     FileSystem fs = FileSystem.get(config);
     EnumSet<FileAttribute> attributes = EnumSet.allOf(FileAttribute.class);
+
     // Remove ACL because tests run with dfs.namenode.acls.enabled false
     attributes.remove(FileAttribute.ACL);
 
@@ -1003,7 +1003,7 @@ public class TestDistCpUtils {
   public static String createTestSetup(FileSystem fs) throws IOException {
     return createTestSetup("/tmp1", fs, FsPermission.getDefault());
   }
-  
+
   public static String createTestSetup(FileSystem fs,
                                        FsPermission perm) throws IOException {
     return createTestSetup("/tmp1", fs, perm);
@@ -1046,7 +1046,7 @@ public class TestDistCpUtils {
       LOG.warn("Exception encountered ", e);
     }
   }
-  
+
   public static void createFile(FileSystem fs, String filePath) throws IOException {
     Path path = new Path(filePath);
     createFile(fs, path);
@@ -1061,6 +1061,7 @@ public class TestDistCpUtils {
   /** Creates a new, empty directory at dirPath and always overwrites */
   public static void createDirectory(FileSystem fs, Path dirPath) throws IOException {
     fs.delete(dirPath, true);
+
     boolean created = fs.mkdirs(dirPath);
     if (!created) {
       LOG.warn("Could not create directory " + dirPath + " this might cause test failures.");
@@ -1068,25 +1069,31 @@ public class TestDistCpUtils {
   }
 
   public static boolean checkIfFoldersAreInSync(FileSystem fs, String targetBase, String sourceBase)
-      throws IOException {
+                                         throws IOException {
     Path base = new Path(targetBase);
 
-     Stack<Path> stack = new Stack<Path>();
-     stack.push(base);
-     while (!stack.isEmpty()) {
-       Path file = stack.pop();
-       if (!fs.exists(file)) continue;
-       FileStatus[] fStatus = fs.listStatus(file);
-       if (fStatus == null || fStatus.length == 0) continue;
+    Stack<Path> stack = new Stack<Path>();
+    stack.push(base);
+    while (!stack.isEmpty()) {
+      Path file = stack.pop();
+      if (!fs.exists(file)) {
+        continue;
+      }
 
-       for (FileStatus status : fStatus) {
-         if (status.isDirectory()) {
-           stack.push(status.getPath());
-         }
-         Assert.assertTrue(fs.exists(new Path(sourceBase + "/" +
-             DistCpUtils.getRelativePath(new Path(targetBase), status.getPath()))));
-       }
-     }
-     return true;
+      FileStatus[] fStatus = fs.listStatus(file);
+      if ((fStatus == null) || (fStatus.length == 0)) {
+        continue;
+      }
+
+      for (FileStatus status : fStatus) {
+        if (status.isDirectory()) {
+          stack.push(status.getPath());
+        }
+        Assert.assertTrue(fs.exists(
+            new Path(sourceBase + "/" +
+              DistCpUtils.getRelativePath(new Path(targetBase), status.getPath()))));
+      }
+    }
+    return true;
   }
 }

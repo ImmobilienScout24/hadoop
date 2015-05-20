@@ -23,12 +23,12 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.mapreduce.Mapper;
 
+
 /**
  * This class extends Retriable command to implement the creation of directories
  * with retries on failure.
  */
 public class RetriableDirectoryCreateCommand extends RetriableCommand {
-
   /**
    * Constructor, taking a description of the action.
    * @param description Verbose description of the copy operation.
@@ -47,8 +47,9 @@ public class RetriableDirectoryCreateCommand extends RetriableCommand {
   @Override
   protected Object doExecute(Object... arguments) throws Exception {
     assert arguments.length == 2 : "Unexpected argument list.";
-    Path target = (Path)arguments[0];
-    Mapper.Context context = (Mapper.Context)arguments[1];
+
+    Path target = (Path) arguments[0];
+    Mapper.Context context = (Mapper.Context) arguments[1];
 
     FileSystem targetFS = target.getFileSystem(context.getConfiguration());
     return targetFS.mkdirs(target);

@@ -18,35 +18,39 @@
 
 package org.apache.hadoop.tools;
 
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.Counter;
+import org.apache.hadoop.mapreduce.Counters;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.StatusReporter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.task.MapContextImpl;
 import org.apache.hadoop.mapreduce.lib.map.WrappedMapper;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.conf.Configuration;
-
+import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
-import java.io.IOException;
+
 
 public class StubContext {
-
   private StubStatusReporter reporter = new StubStatusReporter();
   private RecordReader<Text, CopyListingFileStatus> reader;
   private StubInMemoryWriter writer = new StubInMemoryWriter();
   private Mapper<Text, CopyListingFileStatus, Text, Text>.Context mapperContext;
 
-  public StubContext(Configuration conf,
-      RecordReader<Text, CopyListingFileStatus> reader, int taskId)
-      throws IOException, InterruptedException {
+  public StubContext(Configuration conf, RecordReader<Text, CopyListingFileStatus> reader, int taskId)
+              throws IOException, InterruptedException {
+    WrappedMapper<Text, CopyListingFileStatus, Text, Text> wrappedMapper =
+      new WrappedMapper<Text, CopyListingFileStatus, Text, Text>();
 
-    WrappedMapper<Text, CopyListingFileStatus, Text, Text> wrappedMapper
-            = new WrappedMapper<Text, CopyListingFileStatus, Text, Text>();
-
-    MapContextImpl<Text, CopyListingFileStatus, Text, Text> contextImpl
-            = new MapContextImpl<Text, CopyListingFileStatus, Text, Text>(conf,
-            getTaskAttemptID(taskId), reader, writer,
-            null, reporter, null);
+    MapContextImpl<Text, CopyListingFileStatus, Text, Text> contextImpl =
+      new MapContextImpl<Text, CopyListingFileStatus, Text, Text>(conf,
+        getTaskAttemptID(taskId), reader, writer,
+        null, reporter, null);
 
     this.reader = reader;
     this.mapperContext = wrappedMapper.getMapContext(contextImpl);
@@ -69,17 +73,16 @@ public class StubContext {
   }
 
   public static class StubStatusReporter extends StatusReporter {
-
     private Counters counters = new Counters();
 
     public StubStatusReporter() {
-	    /*
+      /*
       final CounterGroup counterGroup
-              = new CounterGroup("FileInputFormatCounters",
-                                 "FileInputFormatCounters");
+        = new CounterGroup("FileInputFormatCounters",
+                           "FileInputFormatCounters");
       counterGroup.addCounter(new Counter("BYTES_READ",
-                                          "BYTES_READ",
-                                          0));
+                                    "BYTES_READ",
+                                    0));
       counters.addGroup(counterGroup);
       */
     }
@@ -95,7 +98,8 @@ public class StubContext {
     }
 
     @Override
-    public void progress() {}
+    public void progress() {
+    }
 
     @Override
     public float getProgress() {
@@ -103,12 +107,12 @@ public class StubContext {
     }
 
     @Override
-    public void setStatus(String status) {}
+    public void setStatus(String status) {
+    }
   }
 
 
   public static class StubInMemoryWriter extends RecordWriter<Text, Text> {
-
     List<Text> keys = new ArrayList<Text>();
 
     List<Text> values = new ArrayList<Text>();

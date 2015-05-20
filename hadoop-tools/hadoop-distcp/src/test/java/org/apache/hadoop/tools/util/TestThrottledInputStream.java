@@ -23,14 +23,23 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
-import java.io.*;
 
 public class TestThrottledInputStream {
   private static final Log LOG = LogFactory.getLog(TestThrottledInputStream.class);
   private static final int BUFF_SIZE = 1024;
 
-  private enum CB {ONE_C, BUFFER, BUFF_OFFSET}
+  private enum CB {
+    ONE_C,
+    BUFFER,
+    BUFF_OFFSET
+  }
 
   @Test
   public void testRead() {
@@ -46,22 +55,23 @@ public class TestThrottledInputStream {
       long maxBandwidth = copyAndAssert(tmpFile, outFile, 0, 1, -1, CB.BUFFER);
 
       copyAndAssert(tmpFile, outFile, maxBandwidth, 20, 0, CB.BUFFER);
-/*
-      copyAndAssert(tmpFile, outFile, maxBandwidth, 10, 0, CB.BUFFER);
-      copyAndAssert(tmpFile, outFile, maxBandwidth, 50, 0, CB.BUFFER);
-*/
+      /*
+            copyAndAssert(tmpFile, outFile, maxBandwidth, 10, 0, CB.BUFFER);
+            copyAndAssert(tmpFile, outFile, maxBandwidth, 50, 0, CB.BUFFER);
+      */
 
       copyAndAssert(tmpFile, outFile, maxBandwidth, 20, 0, CB.BUFF_OFFSET);
-/*
-      copyAndAssert(tmpFile, outFile, maxBandwidth, 10, 0, CB.BUFF_OFFSET);
-      copyAndAssert(tmpFile, outFile, maxBandwidth, 50, 0, CB.BUFF_OFFSET);
-*/
+      /*
+            copyAndAssert(tmpFile, outFile, maxBandwidth, 10, 0, CB.BUFF_OFFSET);
+            copyAndAssert(tmpFile, outFile, maxBandwidth, 50, 0, CB.BUFF_OFFSET);
+      */
 
       copyAndAssert(tmpFile, outFile, maxBandwidth, 20, 0, CB.ONE_C);
-/*
-      copyAndAssert(tmpFile, outFile, maxBandwidth, 10, 0, CB.ONE_C);
-      copyAndAssert(tmpFile, outFile, maxBandwidth, 50, 0, CB.ONE_C);
-*/
+
+      /*
+            copyAndAssert(tmpFile, outFile, maxBandwidth, 10, 0, CB.ONE_C);
+            copyAndAssert(tmpFile, outFile, maxBandwidth, 50, 0, CB.ONE_C);
+      */
     } catch (IOException e) {
       LOG.error("Exception encountered ", e);
     }
@@ -79,11 +89,12 @@ public class TestThrottledInputStream {
     } else {
       in = new ThrottledInputStream(new FileInputStream(tmpFile), maxBPS);
     }
+
     OutputStream out = new FileOutputStream(outFile);
     try {
       if (flag == CB.BUFFER) {
         copyBytes(in, out, BUFF_SIZE);
-      } else if (flag == CB.BUFF_OFFSET){
+      } else if (flag == CB.BUFF_OFFSET) {
         copyBytesWithOffset(in, out, BUFF_SIZE);
       } else {
         copyByteByByte(in, out);
@@ -92,8 +103,8 @@ public class TestThrottledInputStream {
       LOG.info(in);
       bandwidth = in.getBytesPerSec();
       Assert.assertEquals(in.getTotalBytesRead(), tmpFile.length());
-      Assert.assertTrue(in.getBytesPerSec() > maxBandwidth / (factor * 1.2));
-      Assert.assertTrue(in.getTotalSleepTime() >  sleepTime || in.getBytesPerSec() <= maxBPS);
+      Assert.assertTrue(in.getBytesPerSec() > (maxBandwidth / (factor * 1.2)));
+      Assert.assertTrue((in.getTotalSleepTime() > sleepTime) || (in.getBytesPerSec() <= maxBPS));
     } finally {
       IOUtils.closeStream(in);
       IOUtils.closeStream(out);
@@ -101,10 +112,8 @@ public class TestThrottledInputStream {
     return bandwidth;
   }
 
-  private static void copyBytesWithOffset(InputStream in, OutputStream out, int buffSize)
-    throws IOException {
-
-    byte buf[] = new byte[buffSize];
+  private static void copyBytesWithOffset(InputStream in, OutputStream out, int buffSize) throws IOException {
+    byte[] buf = new byte[buffSize];
     int bytesRead = in.read(buf, 0, buffSize);
     while (bytesRead >= 0) {
       out.write(buf, 0, bytesRead);
@@ -112,9 +121,7 @@ public class TestThrottledInputStream {
     }
   }
 
-  private static void copyByteByByte(InputStream in, OutputStream out)
-    throws IOException {
-
+  private static void copyByteByByte(InputStream in, OutputStream out) throws IOException {
     int ch = in.read();
     while (ch >= 0) {
       out.write(ch);
@@ -122,10 +129,8 @@ public class TestThrottledInputStream {
     }
   }
 
-  private static void copyBytes(InputStream in, OutputStream out, int buffSize)
-    throws IOException {
-
-    byte buf[] = new byte[buffSize];
+  private static void copyBytes(InputStream in, OutputStream out, int buffSize) throws IOException {
+    byte[] buf = new byte[buffSize];
     int bytesRead = in.read(buf);
     while (bytesRead >= 0) {
       out.write(buf, 0, bytesRead);
@@ -146,7 +151,7 @@ public class TestThrottledInputStream {
   private void writeToFile(File tmpFile, long sizeInKB) throws IOException {
     OutputStream out = new FileOutputStream(tmpFile);
     try {
-      byte[] buffer = new byte [1024];
+      byte[] buffer = new byte[1024];
       for (long index = 0; index < sizeInKB; index++) {
         out.write(buffer);
       }

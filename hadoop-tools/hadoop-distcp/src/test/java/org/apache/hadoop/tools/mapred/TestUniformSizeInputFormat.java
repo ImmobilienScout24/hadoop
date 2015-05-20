@@ -26,7 +26,11 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobID;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.tools.CopyListing;
@@ -38,7 +42,6 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +52,7 @@ import java.util.Random;
 public class TestUniformSizeInputFormat {
   private static MiniDFSCluster cluster;
   private static final int N_FILES = 20;
-  private static final int SIZEOF_EACH_FILE=1024;
+  private static final int SIZEOF_EACH_FILE = 1024;
   private static final Random random = new Random();
   private static int totalFileSize = 0;
 
@@ -58,22 +61,23 @@ public class TestUniformSizeInputFormat {
 
   @BeforeClass
   public static void setup() throws Exception {
-    cluster = new MiniDFSCluster.Builder(new Configuration()).numDataNodes(1)
-                                          .format(true).build();
+    cluster = new MiniDFSCluster.Builder(new Configuration()).numDataNodes(1).format(true).build();
     totalFileSize = 0;
 
-    for (int i=0; i<N_FILES; ++i)
+    for (int i = 0; i < N_FILES; ++i) {
       totalFileSize += createFile("/tmp/source/" + String.valueOf(i), SIZEOF_EACH_FILE);
+    }
   }
 
   private static DistCpOptions getOptions(int nMaps) throws Exception {
-    Path sourcePath = new Path(cluster.getFileSystem().getUri().toString()
-                               + "/tmp/source");
-    Path targetPath = new Path(cluster.getFileSystem().getUri().toString()
-                               + "/tmp/target");
+    Path sourcePath = new Path(cluster.getFileSystem().getUri().toString() +
+      "/tmp/source");
+    Path targetPath = new Path(cluster.getFileSystem().getUri().toString() +
+      "/tmp/target");
 
     List<Path> sourceList = new ArrayList<Path>();
     sourceList.add(sourcePath);
+
     final DistCpOptions distCpOptions = new DistCpOptions(sourceList, targetPath);
     distCpOptions.setMaxMaps(nMaps);
     return distCpOptions;
@@ -85,11 +89,11 @@ public class TestUniformSizeInputFormat {
     try {
       fileSystem = cluster.getFileSystem();
       outputStream = fileSystem.create(new Path(path), true, 0);
-      int size = (int) Math.ceil(fileSize + (1 - random.nextFloat()) * fileSize);
+
+      int size = (int) Math.ceil(fileSize + ((1 - random.nextFloat()) * fileSize));
       outputStream.write(new byte[size]);
       return size;
-    }
-    finally {
+    } finally {
       IOUtils.cleanup(null, fileSystem, outputStream);
     }
   }
@@ -103,46 +107,43 @@ public class TestUniformSizeInputFormat {
     DistCpOptions options = getOptions(nMaps);
     Configuration configuration = new Configuration();
     configuration.set("mapred.map.tasks",
-                      String.valueOf(options.getMaxMaps()));
-    Path listFile = new Path(cluster.getFileSystem().getUri().toString()
-        + "/tmp/testGetSplits_1/fileList.seq");
-    CopyListing.getCopyListing(configuration, CREDENTIALS, options).
-        buildListing(listFile, options);
+      String.valueOf(options.getMaxMaps()));
+
+    Path listFile = new Path(cluster.getFileSystem().getUri().toString() +
+      "/tmp/testGetSplits_1/fileList.seq");
+    CopyListing.getCopyListing(configuration, CREDENTIALS, options).buildListing(listFile, options);
 
     JobContext jobContext = new JobContextImpl(configuration, new JobID());
     UniformSizeInputFormat uniformSizeInputFormat = new UniformSizeInputFormat();
-    List<InputSplit> splits
-            = uniformSizeInputFormat.getSplits(jobContext);
+    List<InputSplit> splits = uniformSizeInputFormat.getSplits(jobContext);
 
-    int sizePerMap = totalFileSize/nMaps;
+    int sizePerMap = totalFileSize / nMaps;
 
     checkSplits(listFile, splits);
 
     int doubleCheckedTotalSize = 0;
     int previousSplitSize = -1;
-    for (int i=0; i<splits.size(); ++i) {
+    for (int i = 0; i < splits.size(); ++i) {
       InputSplit split = splits.get(i);
       int currentSplitSize = 0;
-      RecordReader<Text, CopyListingFileStatus> recordReader =
-        uniformSizeInputFormat.createRecordReader(split, null);
+      RecordReader<Text, CopyListingFileStatus> recordReader = uniformSizeInputFormat.createRecordReader(split, null);
       StubContext stubContext = new StubContext(jobContext.getConfiguration(),
-                                                recordReader, 0);
-      final TaskAttemptContext taskAttemptContext
-         = stubContext.getContext();
+        recordReader, 0);
+      final TaskAttemptContext taskAttemptContext = stubContext.getContext();
       recordReader.initialize(split, taskAttemptContext);
       while (recordReader.nextKeyValue()) {
         Path sourcePath = recordReader.getCurrentValue().getPath();
         FileSystem fs = sourcePath.getFileSystem(configuration);
-        FileStatus fileStatus [] = fs.listStatus(sourcePath);
+        FileStatus[] fileStatus = fs.listStatus(sourcePath);
         if (fileStatus.length > 1) {
           continue;
         }
         currentSplitSize += fileStatus[0].getLen();
       }
       Assert.assertTrue(
-           previousSplitSize == -1
-               || Math.abs(currentSplitSize - previousSplitSize) < 0.1*sizePerMap
-               || i == splits.size()-1);
+        (previousSplitSize == -1) ||
+        (Math.abs(currentSplitSize - previousSplitSize) < (0.1 * sizePerMap)) ||
+        (i == (splits.size() - 1)));
 
       doubleCheckedTotalSize += currentSplitSize;
     }
@@ -163,12 +164,12 @@ public class TestUniformSizeInputFormat {
     }
 
     //Verify there is nothing more to read from the input file
-    SequenceFile.Reader reader
-            = new SequenceFile.Reader(cluster.getFileSystem().getConf(),
-                    SequenceFile.Reader.file(listFile));
+    SequenceFile.Reader reader = new SequenceFile.Reader(cluster.getFileSystem().getConf(),
+      SequenceFile.Reader.file(listFile));
 
     try {
       reader.seek(lastEnd);
+
       CopyListingFileStatus srcFileStatus = new CopyListingFileStatus();
       Text srcRelPath = new Text();
       Assert.assertFalse(reader.next(srcRelPath, srcFileStatus));
@@ -180,7 +181,8 @@ public class TestUniformSizeInputFormat {
   @Test
   public void testGetSplits() throws Exception {
     testGetSplits(9);
-    for (int i=1; i<N_FILES; ++i)
+    for (int i = 1; i < N_FILES; ++i) {
       testGetSplits(i);
+    }
   }
 }

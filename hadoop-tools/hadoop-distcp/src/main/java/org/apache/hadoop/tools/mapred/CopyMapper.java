@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.EnumSet;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -43,24 +42,24 @@ import org.apache.hadoop.tools.DistCpOptions.FileAttribute;
 import org.apache.hadoop.tools.util.DistCpUtils;
 import org.apache.hadoop.util.StringUtils;
 
+
 /**
  * Mapper class that executes the DistCp copy operation.
  * Implements the o.a.h.mapreduce.Mapper<> interface.
  */
 public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> {
-
   /**
    * Hadoop counters for the DistCp CopyMapper.
    * (These have been kept identical to the old DistCp,
    * for backward compatibility.)
    */
   public static enum Counter {
-    COPY,         // Number of files received by the mapper for copy.
-    SKIP,         // Number of files skipped.
-    FAIL,         // Number of files that failed to be copied.
-    BYTESCOPIED,  // Number of bytes actually copied by the copy-mapper, total.
-    BYTESEXPECTED,// Number of bytes expected to be copied.
-    BYTESFAILED,  // Number of bytes that failed to be copied.
+    COPY, // Number of files received by the mapper for copy.
+    SKIP, // Number of files skipped.
+    FAIL, // Number of files that failed to be copied.
+    BYTESCOPIED, // Number of bytes actually copied by the copy-mapper, total.
+    BYTESEXPECTED, // Number of bytes expected to be copied.
+    BYTESFAILED, // Number of bytes that failed to be copied.
     BYTESSKIPPED, // Number of bytes that were skipped from copy.
   }
 
@@ -68,9 +67,9 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
    * Indicate the action for each file
    */
   static enum FileAction {
-    SKIP,         // Skip copying the file since it's already in the target FS
-    APPEND,       // Only need to append new data to the file in the target FS 
-    OVERWRITE,    // Overwrite the whole file
+    SKIP, // Skip copying the file since it's already in the target FS
+    APPEND, // Only need to append new data to the file in the target FS
+    OVERWRITE, // Overwrite the whole file
   }
 
   private static Log LOG = LogFactory.getLog(CopyMapper.class);
@@ -85,7 +84,7 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
   private EnumSet<FileAttribute> preserve = EnumSet.noneOf(FileAttribute.class);
 
   private FileSystem targetFS = null;
-  private Path    targetWorkPath = null;
+  private Path targetWorkPath = null;
 
   /**
    * Implementation of the Mapper::setup() method. This extracts the DistCp-
@@ -103,12 +102,12 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
     skipCrc = conf.getBoolean(DistCpOptionSwitch.SKIP_CRC.getConfigLabel(), false);
     overWrite = conf.getBoolean(DistCpOptionSwitch.OVERWRITE.getConfigLabel(), false);
     append = conf.getBoolean(DistCpOptionSwitch.APPEND.getConfigLabel(), false);
-    preserve = DistCpUtils.unpackAttributes(conf.get(DistCpOptionSwitch.
-        PRESERVE_STATUS.getConfigLabel()));
+    preserve = DistCpUtils.unpackAttributes(conf.get(DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel()));
 
     targetWorkPath = new Path(conf.get(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH));
+
     Path targetFinalPath = new Path(conf.get(
-            DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH));
+      DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH));
     targetFS = targetFinalPath.getFileSystem(conf);
 
     if (targetFS.exists(targetFinalPath) && targetFS.isFile(targetFinalPath)) {
@@ -136,7 +135,7 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
     Path sslClient = findCacheFile(cacheFiles, sslConfFileName);
     if (sslClient == null) {
       LOG.warn("SSL Client config file not found. Was looking for " + sslConfFileName +
-          " in " + Arrays.toString(cacheFiles));
+        " in " + Arrays.toString(cacheFiles));
       return;
     }
     sslConfig.addResource(sslClient);
@@ -159,7 +158,7 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
       conf.set(DistCpConstants.CONF_LABEL_SSL_KEYSTORE, sslConfFileName);
     } catch (IOException e) {
       LOG.warn("Unable to write out the ssl configuration. " +
-          "Will fall back to default ssl-client.xml in class path, if there is one", e);
+        "Will fall back to default ssl-client.xml in class path, if there is one", e);
     }
   }
 
@@ -171,7 +170,7 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
    * @return Path of the filename if found, else null
    */
   private Path findCacheFile(Path[] cacheFiles, String fileName) {
-    if (cacheFiles != null && cacheFiles.length > 0) {
+    if ((cacheFiles != null) && (cacheFiles.length > 0)) {
       for (Path file : cacheFiles) {
         if (file.getName().equals(fileName)) {
           return file;
@@ -189,18 +188,19 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
    */
   @Override
   public void map(Text relPath, CopyListingFileStatus sourceFileStatus,
-          Context context) throws IOException, InterruptedException {
+                  Context context) throws IOException, InterruptedException {
     Path sourcePath = sourceFileStatus.getPath();
 
-    if (LOG.isDebugEnabled())
+    if (LOG.isDebugEnabled()) {
       LOG.debug("DistCpMapper::map(): Received " + sourcePath + ", " + relPath);
+    }
 
     Path target = new Path(targetWorkPath.makeQualified(targetFS.getUri(),
-                          targetFS.getWorkingDirectory()) + relPath.toString());
+        targetFS.getWorkingDirectory()) + relPath.toString());
 
-    EnumSet<DistCpOptions.FileAttribute> fileAttributes
-            = getFileAttributeSettings(context);
-    final boolean preserveRawXattrs = context.getConfiguration().getBoolean(
+    EnumSet<DistCpOptions.FileAttribute> fileAttributes = getFileAttributeSettings(context);
+    final boolean preserveRawXattrs = context.getConfiguration()
+      .getBoolean(
         DistCpConstants.CONF_LABEL_PRESERVE_RAWXATTRS, false);
 
     final String description = "Copying " + sourcePath + " to " + target;
@@ -213,11 +213,11 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
       FileSystem sourceFS;
       try {
         sourceFS = sourcePath.getFileSystem(conf);
-        final boolean preserveXAttrs =
-            fileAttributes.contains(FileAttribute.XATTR);
+
+        final boolean preserveXAttrs = fileAttributes.contains(FileAttribute.XATTR);
         sourceCurrStatus = DistCpUtils.toCopyListingFileStatus(sourceFS,
           sourceFS.getFileStatus(sourcePath),
-          fileAttributes.contains(FileAttribute.ACL), 
+          fileAttributes.contains(FileAttribute.ACL),
           preserveXAttrs, preserveRawXattrs);
       } catch (FileNotFoundException e) {
         throw new IOException(new RetriableFileCopyCommand.CopyReadException(e));
@@ -228,13 +228,14 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
       try {
         targetStatus = targetFS.getFileStatus(target);
       } catch (FileNotFoundException ignore) {
-        if (LOG.isDebugEnabled())
+        if (LOG.isDebugEnabled()) {
           LOG.debug("Path could not be found: " + target, ignore);
+        }
       }
 
-      if (targetStatus != null && (targetStatus.isDirectory() != sourceCurrStatus.isDirectory())) {
+      if ((targetStatus != null) && (targetStatus.isDirectory() != sourceCurrStatus.isDirectory())) {
         throw new IOException("Can't replace " + target + ". Target is " +
-            getFileType(targetStatus) + ", Source is " + getFileType(sourceCurrStatus));
+          getFileType(targetStatus) + ", Source is " + getFileType(sourceCurrStatus));
       }
 
       if (sourceCurrStatus.isDirectory()) {
@@ -244,45 +245,44 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
 
       FileAction action = checkUpdate(sourceFS, sourceCurrStatus, target);
       if (action == FileAction.SKIP) {
-        LOG.info("Skipping copy of " + sourceCurrStatus.getPath()
-                 + " to " + target);
+        LOG.info("Skipping copy of " + sourceCurrStatus.getPath() +
+          " to " + target);
         updateSkipCounters(context, sourceCurrStatus);
         context.write(null, new Text("SKIP: " + sourceCurrStatus.getPath()));
       } else {
         copyFileWithRetry(description, sourceCurrStatus, target, context,
-            action, fileAttributes);
+          action, fileAttributes);
       }
 
       DistCpUtils.preserve(target.getFileSystem(conf), target, sourceCurrStatus,
-          fileAttributes, preserveRawXattrs);
+        fileAttributes, preserveRawXattrs);
     } catch (IOException exception) {
       handleFailures(exception, sourceFileStatus, target, context);
     }
   }
 
   private String getFileType(FileStatus fileStatus) {
-    return fileStatus == null ? "N/A" : (fileStatus.isDirectory() ? "dir" : "file");
+    return (fileStatus == null) ? "N/A" : (fileStatus.isDirectory() ? "dir" : "file");
   }
 
-  private static EnumSet<DistCpOptions.FileAttribute>
-          getFileAttributeSettings(Mapper.Context context) {
+  private static EnumSet<DistCpOptions.FileAttribute> getFileAttributeSettings(Mapper.Context context) {
     String attributeString = context.getConfiguration().get(
-            DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel());
+      DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel());
     return DistCpUtils.unpackAttributes(attributeString);
   }
 
   private void copyFileWithRetry(String description,
-      FileStatus sourceFileStatus, Path target, Context context,
-      FileAction action, EnumSet<DistCpOptions.FileAttribute> fileAttributes)
-      throws IOException {
+                                 FileStatus sourceFileStatus, Path target, Context context,
+                                 FileAction action, EnumSet<DistCpOptions.FileAttribute> fileAttributes)
+                          throws IOException {
     long bytesCopied;
     try {
       bytesCopied = (Long) new RetriableFileCopyCommand(skipCrc, description,
-          action).execute(sourceFileStatus, target, context, fileAttributes);
+        action).execute(sourceFileStatus, target, context, fileAttributes);
     } catch (Exception e) {
       context.setStatus("Copy Failure: " + sourceFileStatus.getPath());
       throw new IOException("File copy failed: " + sourceFileStatus.getPath() +
-          " --> " + target, e);
+        " --> " + target, e);
     }
     incrementCounter(context, Counter.BYTESEXPECTED, sourceFileStatus.getLen());
     incrementCounter(context, Counter.BYTESCOPIED, bytesCopied);
@@ -290,7 +290,7 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
   }
 
   private void createTargetDirsWithRetry(String description,
-                   Path target, Context context) throws IOException {
+                                         Path target, Context context) throws IOException {
     try {
       new RetriableDirectoryCreateCommand(description).execute(target, context);
     } catch (Exception e) {
@@ -307,20 +307,20 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
   }
 
   private void handleFailures(IOException exception,
-                                     FileStatus sourceFileStatus, Path target,
-                                     Context context) throws IOException, InterruptedException {
+                              FileStatus sourceFileStatus, Path target,
+                              Context context) throws IOException, InterruptedException {
     LOG.error("Failure in copying " + sourceFileStatus.getPath() + " to " +
-                target, exception);
+      target, exception);
 
-    if (ignoreFailures && exception.getCause() instanceof
-            RetriableFileCopyCommand.CopyReadException) {
+    if (ignoreFailures && (exception.getCause() instanceof RetriableFileCopyCommand.CopyReadException)) {
       incrementCounter(context, Counter.FAIL, 1);
       incrementCounter(context, Counter.BYTESFAILED, sourceFileStatus.getLen());
-      context.write(null, new Text("FAIL: " + sourceFileStatus.getPath() + " - " +
+      context.write(null,
+        new Text("FAIL: " + sourceFileStatus.getPath() + " - " +
           StringUtils.stringifyException(exception)));
-    }
-    else
+    } else {
       throw exception;
+    }
   }
 
   private static void incrementCounter(Context context, Counter counter,
@@ -329,23 +329,23 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
   }
 
   private FileAction checkUpdate(FileSystem sourceFS, FileStatus source,
-      Path target) throws IOException {
+                                 Path target) throws IOException {
     final FileStatus targetFileStatus;
     try {
       targetFileStatus = targetFS.getFileStatus(target);
     } catch (FileNotFoundException e) {
       return FileAction.OVERWRITE;
     }
-    if (targetFileStatus != null && !overWrite) {
+    if ((targetFileStatus != null) && !overWrite) {
       if (canSkip(sourceFS, source, targetFileStatus)) {
         return FileAction.SKIP;
       } else if (append) {
         long targetLen = targetFileStatus.getLen();
         if (targetLen < source.getLen()) {
           FileChecksum sourceChecksum = sourceFS.getFileChecksum(
-              source.getPath(), targetLen);
-          if (sourceChecksum != null
-              && sourceChecksum.equals(targetFS.getFileChecksum(target))) {
+            source.getPath(), targetLen);
+          if ((sourceChecksum != null) &&
+              sourceChecksum.equals(targetFS.getFileChecksum(target))) {
             // We require that the checksum is not null. Thus currently only
             // DistributedFileSystem is supported
             return FileAction.APPEND;
@@ -356,18 +356,19 @@ public class CopyMapper extends Mapper<Text, CopyListingFileStatus, Text, Text> 
     return FileAction.OVERWRITE;
   }
 
-  private boolean canSkip(FileSystem sourceFS, FileStatus source, 
-      FileStatus target) throws IOException {
+  private boolean canSkip(FileSystem sourceFS, FileStatus source,
+                          FileStatus target) throws IOException {
     if (!syncFolders) {
       return true;
     }
+
     boolean sameLength = target.getLen() == source.getLen();
-    boolean sameBlockSize = source.getBlockSize() == target.getBlockSize()
-        || !preserve.contains(FileAttribute.BLOCKSIZE);
+    boolean sameBlockSize = (source.getBlockSize() == target.getBlockSize()) ||
+      !preserve.contains(FileAttribute.BLOCKSIZE);
     if (sameLength && sameBlockSize) {
       return skipCrc ||
-          DistCpUtils.checksumsAreEqual(sourceFS, source.getPath(), null,
-              targetFS, target.getPath());
+        DistCpUtils.checksumsAreEqual(sourceFS, source.getPath(), null,
+          targetFS, target.getPath());
     } else {
       return false;
     }

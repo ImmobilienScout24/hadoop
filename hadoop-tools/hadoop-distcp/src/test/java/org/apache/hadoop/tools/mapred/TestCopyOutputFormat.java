@@ -20,7 +20,13 @@ package org.apache.hadoop.tools.mapred;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobID;
+import org.apache.hadoop.mapreduce.OutputFormat;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.conf.Configuration;
@@ -28,8 +34,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.tools.DistCpConstants;
 import org.junit.Test;
 import org.junit.Assert;
-
 import java.io.IOException;
+
 
 public class TestCopyOutputFormat {
   private static final Log LOG = LogFactory.getLog(TestCopyOutputFormat.class);
@@ -46,8 +52,8 @@ public class TestCopyOutputFormat {
       Path directory = new Path("/tmp/test");
       CopyOutputFormat.setCommitDirectory(job, directory);
       Assert.assertEquals(directory, CopyOutputFormat.getCommitDirectory(job));
-      Assert.assertEquals(directory.toString(), job.getConfiguration().
-          get(DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH));
+      Assert.assertEquals(directory.toString(),
+        job.getConfiguration().get(DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH));
     } catch (IOException e) {
       LOG.error("Exception encountered while running test", e);
       Assert.fail("Failed while testing for set Commit Directory");
@@ -66,8 +72,8 @@ public class TestCopyOutputFormat {
       Path directory = new Path("/tmp/test");
       CopyOutputFormat.setWorkingDirectory(job, directory);
       Assert.assertEquals(directory, CopyOutputFormat.getWorkingDirectory(job));
-      Assert.assertEquals(directory.toString(), job.getConfiguration().
-          get(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH));
+      Assert.assertEquals(directory.toString(),
+        job.getConfiguration().get(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH));
     } catch (IOException e) {
       LOG.error("Exception encountered while running test", e);
       Assert.fail("Failed while testing for set Working Directory");
@@ -98,14 +104,16 @@ public class TestCopyOutputFormat {
         JobContext context = new JobContextImpl(job.getConfiguration(), jobID);
         outputFormat.checkOutputSpecs(context);
         Assert.fail("No checking for invalid work/commit path");
-      } catch (IllegalStateException ignore) { }
+      } catch (IllegalStateException ignore) {
+      }
 
       CopyOutputFormat.setWorkingDirectory(job, new Path("/tmp/work"));
       try {
         JobContext context = new JobContextImpl(job.getConfiguration(), jobID);
         outputFormat.checkOutputSpecs(context);
         Assert.fail("No checking for invalid commit path");
-      } catch (IllegalStateException ignore) { }
+      } catch (IllegalStateException ignore) {
+      }
 
       job.getConfiguration().set(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH, "");
       CopyOutputFormat.setCommitDirectory(job, new Path("/tmp/commit"));
@@ -113,7 +121,8 @@ public class TestCopyOutputFormat {
         JobContext context = new JobContextImpl(job.getConfiguration(), jobID);
         outputFormat.checkOutputSpecs(context);
         Assert.fail("No checking for invalid work path");
-      } catch (IllegalStateException ignore) { }
+      } catch (IllegalStateException ignore) {
+      }
 
       CopyOutputFormat.setWorkingDirectory(job, new Path("/tmp/work"));
       CopyOutputFormat.setCommitDirectory(job, new Path("/tmp/commit"));

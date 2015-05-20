@@ -21,15 +21,18 @@ package org.apache.hadoop.tools.mapred;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.tools.mapred.CopyMapper.FileAction;
 import org.junit.Test;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
-
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+
 
 public class TestRetriableFileCopyCommand {
   @SuppressWarnings("rawtypes")
@@ -44,17 +47,16 @@ public class TestRetriableFileCopyCommand {
 
     File f = File.createTempFile(this.getClass().getSimpleName(), null);
     f.deleteOnExit();
-    FileStatus stat =
-        new FileStatus(1L, false, 1, 1024, 0, new Path(f.toURI()));
-    
+
+    FileStatus stat = new FileStatus(1L, false, 1, 1024, 0, new Path(f.toURI()));
+
     Exception actualEx = null;
     try {
-      new RetriableFileCopyCommand("testFailOnCloseError", FileAction.OVERWRITE)
-        .copyBytes(stat, 0, out, 512, context);
+      new RetriableFileCopyCommand("testFailOnCloseError", FileAction.OVERWRITE).copyBytes(stat, 0, out, 512, context);
     } catch (Exception e) {
       actualEx = e;
     }
     assertNotNull("close didn't fail", actualEx);
     assertEquals(expectedEx, actualEx);
-  }  
+  }
 }

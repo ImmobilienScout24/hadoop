@@ -20,11 +20,8 @@ package org.apache.hadoop.tools.util;
 
 import java.io.IOException;
 import java.io.InputStream;
-
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.PositionedReadable;
 
-import com.google.common.base.Preconditions;
 
 /**
  * The ThrottleInputStream provides bandwidth throttling on a specified
@@ -37,7 +34,6 @@ import com.google.common.base.Preconditions;
  * the average tends towards the specified maximum, overall.)
  */
 public class ThrottledInputStream extends InputStream {
-
   private final InputStream rawStream;
   private final long maxBytesPerSec;
   private final long startTime = System.currentTimeMillis();
@@ -52,7 +48,7 @@ public class ThrottledInputStream extends InputStream {
   }
 
   public ThrottledInputStream(InputStream rawStream, long maxBytesPerSec) {
-    assert maxBytesPerSec > 0 : "Bandwidth " + maxBytesPerSec + " is invalid"; 
+    assert maxBytesPerSec > 0 : "Bandwidth " + maxBytesPerSec + " is invalid";
     this.rawStream = rawStream;
     this.maxBytesPerSec = maxBytesPerSec;
   }
@@ -66,6 +62,7 @@ public class ThrottledInputStream extends InputStream {
   @Override
   public int read() throws IOException {
     throttle();
+
     int data = rawStream.read();
     if (data != -1) {
       bytesRead++;
@@ -77,6 +74,7 @@ public class ThrottledInputStream extends InputStream {
   @Override
   public int read(byte[] b) throws IOException {
     throttle();
+
     int readLen = rawStream.read(b);
     if (readLen != -1) {
       bytesRead += readLen;
@@ -88,6 +86,7 @@ public class ThrottledInputStream extends InputStream {
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     throttle();
+
     int readLen = rawStream.read(b, off, len);
     if (readLen != -1) {
       bytesRead += readLen;
@@ -99,15 +98,15 @@ public class ThrottledInputStream extends InputStream {
    * Read bytes starting from the specified position. This requires rawStream is
    * an instance of {@link PositionedReadable}.
    */
-  public int read(long position, byte[] buffer, int offset, int length)
-      throws IOException {
+  public int read(long position, byte[] buffer, int offset, int length) throws IOException {
     if (!(rawStream instanceof PositionedReadable)) {
       throw new UnsupportedOperationException(
-          "positioned read is not supported by the internal stream");
+        "positioned read is not supported by the internal stream");
     }
     throttle();
+
     int readLen = ((PositionedReadable) rawStream).read(position, buffer,
-        offset, length);
+      offset, length);
     if (readLen != -1) {
       bytesRead += readLen;
     }
@@ -159,10 +158,10 @@ public class ThrottledInputStream extends InputStream {
   @Override
   public String toString() {
     return "ThrottledInputStream{" +
-        "bytesRead=" + bytesRead +
-        ", maxBytesPerSec=" + maxBytesPerSec +
-        ", bytesPerSec=" + getBytesPerSec() +
-        ", totalSleepTime=" + totalSleepTime +
-        '}';
+      "bytesRead=" + bytesRead +
+      ", maxBytesPerSec=" + maxBytesPerSec +
+      ", bytesPerSec=" + getBytesPerSec() +
+      ", totalSleepTime=" + totalSleepTime +
+      '}';
   }
 }

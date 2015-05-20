@@ -33,11 +33,11 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
+
 
 public class TestFileBasedCopyListing {
   private static final Log LOG = LogFactory.getLog(TestFileBasedCopyListing.class);
@@ -50,8 +50,7 @@ public class TestFileBasedCopyListing {
 
   @BeforeClass
   public static void create() throws IOException {
-    cluster = new MiniDFSCluster.Builder(config).numDataNodes(1).format(true)
-                                                .build();
+    cluster = new MiniDFSCluster.Builder(config).numDataNodes(1).format(true).build();
     fs = cluster.getFileSystem();
     buildExpectedValuesMap();
   }
@@ -103,7 +102,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseSingleFileMissingTarget(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -129,7 +127,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseSingleFileTargetFile(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -155,7 +152,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseSingleFileTargetDir(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -182,7 +178,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseSingleDirTargetMissing(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -203,7 +198,6 @@ public class TestFileBasedCopyListing {
 
   @Test
   public void testSingleDirTargetPresent() {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -225,7 +219,6 @@ public class TestFileBasedCopyListing {
 
   @Test
   public void testUpdateSingleDirTargetPresent() {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -252,7 +245,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseMultiFileTargetPresent(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -279,7 +271,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseMultiFileTargetMissing(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -300,7 +291,6 @@ public class TestFileBasedCopyListing {
 
   @Test
   public void testMultiDirTargetPresent() {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -322,7 +312,6 @@ public class TestFileBasedCopyListing {
 
   @Test
   public void testUpdateMultiDirTargetPresent() {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -349,7 +338,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseMultiDirTargetMissing(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp/listing");
       Path target = new Path("/tmp/target");
@@ -376,7 +364,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseGlobTargetMissingSingleLevel(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp1/listing");
       Path target = new Path("/tmp/target");
@@ -404,7 +391,6 @@ public class TestFileBasedCopyListing {
   }
 
   private void caseGlobTargetMissingMultiLevel(boolean sync) {
-
     try {
       Path listFile = new Path("/tmp1/listing");
       Path target = new Path("/tmp/target");
@@ -412,7 +398,7 @@ public class TestFileBasedCopyListing {
       addEntries(listFile, "/tmp/*/*");
       createFiles("/tmp/multifile/file3", "/tmp/multifile/file4", "/tmp/multifile/file5");
       createFiles("/tmp/singledir1/dir3/file7", "/tmp/singledir1/dir3/file8",
-          "/tmp/singledir1/dir3/file9");
+        "/tmp/singledir1/dir3/file9");
 
       runTest(listFile, target, sync);
 
@@ -428,7 +414,6 @@ public class TestFileBasedCopyListing {
 
   @Test
   public void testGlobTargetDirMultiLevel() {
-
     try {
       Path listFile = new Path("/tmp1/listing");
       Path target = new Path("/tmp/target");
@@ -436,7 +421,7 @@ public class TestFileBasedCopyListing {
       addEntries(listFile, "/tmp/*/*");
       createFiles("/tmp/multifile/file3", "/tmp/multifile/file4", "/tmp/multifile/file5");
       createFiles("/tmp/singledir1/dir3/file7", "/tmp/singledir1/dir3/file8",
-          "/tmp/singledir1/dir3/file9");
+        "/tmp/singledir1/dir3/file9");
       mkdirs(target.toString());
 
       runTest(listFile, target, true);
@@ -453,7 +438,6 @@ public class TestFileBasedCopyListing {
 
   @Test
   public void testUpdateGlobTargetDirMultiLevel() {
-
     try {
       Path listFile = new Path("/tmp1/listing");
       Path target = new Path("/tmp/target");
@@ -461,7 +445,7 @@ public class TestFileBasedCopyListing {
       addEntries(listFile, "/tmp/*/*");
       createFiles("/tmp/Umultifile/Ufile3", "/tmp/Umultifile/Ufile4", "/tmp/Umultifile/Ufile5");
       createFiles("/tmp/Usingledir1/Udir3/Ufile7", "/tmp/Usingledir1/Udir3/Ufile8",
-          "/tmp/Usingledir1/Udir3/Ufile9");
+        "/tmp/Usingledir1/Udir3/Ufile9");
       mkdirs(target.toString());
 
       runTest(listFile, target, true);
@@ -479,7 +463,7 @@ public class TestFileBasedCopyListing {
   private void addEntries(Path listFile, String... entries) throws IOException {
     OutputStream out = fs.create(listFile);
     try {
-      for (String entry : entries){
+      for (String entry : entries) {
         out.write(entry.getBytes());
         out.write("\n".getBytes());
       }
@@ -489,7 +473,7 @@ public class TestFileBasedCopyListing {
   }
 
   private void createFiles(String... entries) throws IOException {
-    for (String entry : entries){
+    for (String entry : entries) {
       OutputStream out = fs.create(new Path(entry));
       try {
         out.write(entry.getBytes());
@@ -501,18 +485,18 @@ public class TestFileBasedCopyListing {
   }
 
   private void mkdirs(String... entries) throws IOException {
-    for (String entry : entries){
+    for (String entry : entries) {
       fs.mkdirs(new Path(entry));
     }
   }
 
   private void runTest(Path listFile, Path target,
-      boolean targetExists) throws IOException {
+                       boolean targetExists) throws IOException {
     runTest(listFile, target, targetExists, true);
   }
 
   private void runTest(Path listFile, Path target, boolean targetExists,
-      boolean sync) throws IOException {
+                       boolean sync) throws IOException {
     CopyListing listing = new FileBasedCopyListing(config, CREDENTIALS);
     DistCpOptions options = new DistCpOptions(listFile, target);
     options.setSyncFolder(sync);
@@ -527,13 +511,13 @@ public class TestFileBasedCopyListing {
 
     int recCount = 0;
     SequenceFile.Reader reader = new SequenceFile.Reader(config,
-                                            SequenceFile.Reader.file(listFile));
+      SequenceFile.Reader.file(listFile));
     try {
       Text relPath = new Text();
       CopyListingFileStatus fileStatus = new CopyListingFileStatus();
       while (reader.next(relPath, fileStatus)) {
         if (fileStatus.isDirectory() && relPath.toString().equals("")) {
-          // ignore root with empty relPath, which is an entry to be 
+          // ignore root with empty relPath, which is an entry to be
           // used for preserving root attributes etc.
           continue;
         }

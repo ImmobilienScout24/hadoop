@@ -31,15 +31,14 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import java.io.DataOutputStream;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TestGlobbedCopyListing {
 
+public class TestGlobbedCopyListing {
   private static MiniDFSCluster cluster;
 
   private static final Credentials CREDENTIALS = new Credentials();
@@ -70,8 +69,7 @@ public class TestGlobbedCopyListing {
       fileSystem = cluster.getFileSystem();
       fileSystem.mkdirs(new Path(path));
       recordInExpectedValues(path);
-    }
-    finally {
+    } finally {
       IOUtils.cleanup(null, fileSystem);
     }
   }
@@ -83,8 +81,7 @@ public class TestGlobbedCopyListing {
       fileSystem = cluster.getFileSystem();
       outputStream = fileSystem.create(new Path(path), true, 0);
       recordInExpectedValues(path);
-    }
-    finally {
+    } finally {
       IOUtils.cleanup(null, fileSystem, outputStream);
     }
   }
@@ -118,13 +115,13 @@ public class TestGlobbedCopyListing {
 
   private void verifyContents(Path listingPath) throws Exception {
     SequenceFile.Reader reader = new SequenceFile.Reader(cluster.getFileSystem(),
-                                              listingPath, new Configuration());
-    Text key   = new Text();
+      listingPath, new Configuration());
+    Text key = new Text();
     CopyListingFileStatus value = new CopyListingFileStatus();
     Map<String, String> actualValues = new HashMap<String, String>();
     while (reader.next(key, value)) {
       if (value.isDirectory() && key.toString().equals("")) {
-        // ignore root with empty relPath, which is an entry to be 
+        // ignore root with empty relPath, which is an entry to be
         // used for preserving root attributes etc.
         continue;
       }

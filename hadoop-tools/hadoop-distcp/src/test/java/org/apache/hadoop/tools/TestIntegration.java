@@ -31,12 +31,12 @@ import org.apache.hadoop.tools.util.TestDistCpUtils;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 
 public class TestIntegration {
   private static final Log LOG = LogFactory.getLog(TestIntegration.class);
@@ -59,25 +59,24 @@ public class TestIntegration {
     try {
       fs = FileSystem.get(getConf());
       listFile = new Path("target/tmp/listing").makeQualified(fs.getUri(),
-              fs.getWorkingDirectory());
+        fs.getWorkingDirectory());
       target = new Path("target/tmp/target").makeQualified(fs.getUri(),
-              fs.getWorkingDirectory());
+        fs.getWorkingDirectory());
       root = new Path("target/tmp").makeQualified(fs.getUri(),
-              fs.getWorkingDirectory()).toString();
+        fs.getWorkingDirectory()).toString();
       TestDistCpUtils.delete(fs, root);
     } catch (IOException e) {
       LOG.error("Exception encountered ", e);
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testSingleFileMissingTarget() {
     caseSingleFileMissingTarget(false);
     caseSingleFileMissingTarget(true);
   }
 
   private void caseSingleFileMissingTarget(boolean sync) {
-
     try {
       addEntries(listFile, "singlefile1/file1");
       createFiles("singlefile1/file1");
@@ -93,14 +92,13 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testSingleFileTargetFile() {
     caseSingleFileTargetFile(false);
     caseSingleFileTargetFile(true);
   }
 
   private void caseSingleFileTargetFile(boolean sync) {
-
     try {
       addEntries(listFile, "singlefile1/file1");
       createFiles("singlefile1/file1", "target");
@@ -116,14 +114,13 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testSingleFileTargetDir() {
     caseSingleFileTargetDir(false);
     caseSingleFileTargetDir(true);
   }
 
   private void caseSingleFileTargetDir(boolean sync) {
-
     try {
       addEntries(listFile, "singlefile2/file2");
       createFiles("singlefile2/file2");
@@ -140,14 +137,13 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testSingleDirTargetMissing() {
     caseSingleDirTargetMissing(false);
     caseSingleDirTargetMissing(true);
   }
 
   private void caseSingleDirTargetMissing(boolean sync) {
-
     try {
       addEntries(listFile, "singledir");
       mkdirs(root + "/singledir/dir1");
@@ -163,9 +159,8 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testSingleDirTargetPresent() {
-
     try {
       addEntries(listFile, "singledir");
       mkdirs(root + "/singledir/dir1");
@@ -182,9 +177,8 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testUpdateSingleDirTargetPresent() {
-
     try {
       addEntries(listFile, "Usingledir");
       mkdirs(root + "/Usingledir/Udir1");
@@ -201,14 +195,13 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testMultiFileTargetPresent() {
     caseMultiFileTargetPresent(false);
     caseMultiFileTargetPresent(true);
   }
 
   private void caseMultiFileTargetPresent(boolean sync) {
-
     try {
       addEntries(listFile, "multifile/file3", "multifile/file4", "multifile/file5");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
@@ -225,9 +218,8 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testCustomCopyListing() {
-
     try {
       addEntries(listFile, "multifile1/file3", "multifile1/file4", "multifile1/file5");
       createFiles("multifile1/file3", "multifile1/file4", "multifile1/file5");
@@ -236,9 +228,9 @@ public class TestIntegration {
       Configuration conf = getConf();
       try {
         conf.setClass(DistCpConstants.CONF_LABEL_COPY_LISTING_CLASS,
-            CustomCopyListing.class, CopyListing.class);
-        DistCpOptions options = new DistCpOptions(Arrays.
-            asList(new Path(root + "/" + "multifile1")), target);
+          CustomCopyListing.class, CopyListing.class);
+
+        DistCpOptions options = new DistCpOptions(Arrays.asList(new Path(root + "/" + "multifile1")), target);
         options.setSyncFolder(true);
         options.setDeleteMissing(false);
         options.setOverwrite(false);
@@ -262,7 +254,6 @@ public class TestIntegration {
   }
 
   private static class CustomCopyListing extends SimpleCopyListing {
-
     public CustomCopyListing(Configuration configuration,
                              Credentials credentials) {
       super(configuration, credentials);
@@ -274,14 +265,13 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testMultiFileTargetMissing() {
     caseMultiFileTargetMissing(false);
     caseMultiFileTargetMissing(true);
   }
 
   private void caseMultiFileTargetMissing(boolean sync) {
-
     try {
       addEntries(listFile, "multifile/file3", "multifile/file4", "multifile/file5");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
@@ -297,9 +287,8 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testMultiDirTargetPresent() {
-
     try {
       addEntries(listFile, "multifile", "singledir");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
@@ -316,9 +305,8 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testUpdateMultiDirTargetPresent() {
-
     try {
       addEntries(listFile, "Umultifile", "Usingledir");
       createFiles("Umultifile/Ufile3", "Umultifile/Ufile4", "Umultifile/Ufile5");
@@ -335,9 +323,8 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testMultiDirTargetMissing() {
-
     try {
       addEntries(listFile, "multifile", "singledir");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
@@ -346,7 +333,7 @@ public class TestIntegration {
       runTest(listFile, target, false, false);
 
       checkResult(target, 2, "multifile/file3", "multifile/file4",
-          "multifile/file5", "singledir/dir1");
+        "multifile/file5", "singledir/dir1");
     } catch (IOException e) {
       LOG.error("Exception encountered while testing distcp", e);
       Assert.fail("distcp failure");
@@ -355,9 +342,8 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testUpdateMultiDirTargetMissing() {
-
     try {
       addEntries(listFile, "multifile", "singledir");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
@@ -373,17 +359,16 @@ public class TestIntegration {
       TestDistCpUtils.delete(fs, root);
     }
   }
-  
-  @Test(timeout=100000)
+
+  @Test(timeout = 100000)
   public void testDeleteMissingInDestination() {
-    
     try {
       addEntries(listFile, "srcdir");
       createFiles("srcdir/file1", "dstdir/file1", "dstdir/file2");
-      
+
       Path target = new Path(root + "/dstdir");
       runTest(listFile, target, false, true, true, false);
-      
+
       checkResult(target, 1, "file1");
     } catch (IOException e) {
       LOG.error("Exception encountered while running distcp", e);
@@ -393,23 +378,23 @@ public class TestIntegration {
       TestDistCpUtils.delete(fs, "target/tmp1");
     }
   }
-  
-  @Test(timeout=100000)
+
+  @Test(timeout = 100000)
   public void testOverwrite() {
     byte[] contents1 = "contents1".getBytes();
     byte[] contents2 = "contents2".getBytes();
     Assert.assertEquals(contents1.length, contents2.length);
-    
+
     try {
       addEntries(listFile, "srcdir");
       createWithContents("srcdir/file1", contents1);
       createWithContents("dstdir/file1", contents2);
-      
+
       Path target = new Path(root + "/dstdir");
       runTest(listFile, target, false, false, false, true);
-      
+
       checkResult(target, 1, "file1");
-      
+
       // make sure dstdir/file1 has been overwritten with the contents
       // of srcdir/file1
       FSDataInputStream is = fs.open(new Path(root + "/dstdir/file1"));
@@ -426,12 +411,11 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testGlobTargetMissingSingleLevel() {
-
     try {
       Path listFile = new Path("target/tmp1/listing").makeQualified(fs.getUri(),
-                                fs.getWorkingDirectory());
+        fs.getWorkingDirectory());
       addEntries(listFile, "*");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
       createFiles("singledir/dir2/file6");
@@ -439,7 +423,7 @@ public class TestIntegration {
       runTest(listFile, target, false, false);
 
       checkResult(target, 2, "multifile/file3", "multifile/file4", "multifile/file5",
-          "singledir/dir2/file6");
+        "singledir/dir2/file6");
     } catch (IOException e) {
       LOG.error("Exception encountered while testing distcp", e);
       Assert.fail("distcp failure");
@@ -449,12 +433,11 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testUpdateGlobTargetMissingSingleLevel() {
-
     try {
       Path listFile = new Path("target/tmp1/listing").makeQualified(fs.getUri(),
-                                  fs.getWorkingDirectory());
+        fs.getWorkingDirectory());
       addEntries(listFile, "*");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
       createFiles("singledir/dir2/file6");
@@ -471,21 +454,20 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testGlobTargetMissingMultiLevel() {
-
     try {
       Path listFile = new Path("target/tmp1/listing").makeQualified(fs.getUri(),
-              fs.getWorkingDirectory());
+        fs.getWorkingDirectory());
       addEntries(listFile, "*/*");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
       createFiles("singledir1/dir3/file7", "singledir1/dir3/file8",
-          "singledir1/dir3/file9");
+        "singledir1/dir3/file9");
 
       runTest(listFile, target, false, false);
 
       checkResult(target, 4, "file3", "file4", "file5",
-          "dir3/file7", "dir3/file8", "dir3/file9");
+        "dir3/file7", "dir3/file8", "dir3/file9");
     } catch (IOException e) {
       LOG.error("Exception encountered while running distcp", e);
       Assert.fail("distcp failure");
@@ -495,21 +477,20 @@ public class TestIntegration {
     }
   }
 
-  @Test(timeout=100000)
+  @Test(timeout = 100000)
   public void testUpdateGlobTargetMissingMultiLevel() {
-
     try {
       Path listFile = new Path("target/tmp1/listing").makeQualified(fs.getUri(),
-              fs.getWorkingDirectory());
+        fs.getWorkingDirectory());
       addEntries(listFile, "*/*");
       createFiles("multifile/file3", "multifile/file4", "multifile/file5");
       createFiles("singledir1/dir3/file7", "singledir1/dir3/file8",
-          "singledir1/dir3/file9");
+        "singledir1/dir3/file9");
 
       runTest(listFile, target, false, true);
 
       checkResult(target, 6, "file3", "file4", "file5",
-          "file7", "file8", "file9");
+        "file7", "file8", "file9");
     } catch (IOException e) {
       LOG.error("Exception encountered while running distcp", e);
       Assert.fail("distcp failure");
@@ -518,8 +499,8 @@ public class TestIntegration {
       TestDistCpUtils.delete(fs, "target/tmp1");
     }
   }
-  
-  @Test(timeout=100000)
+
+  @Test(timeout = 100000)
   public void testCleanup() {
     try {
       Path sourcePath = new Path("noscheme:///file");
@@ -530,25 +511,24 @@ public class TestIntegration {
 
       Configuration conf = getConf();
       Path stagingDir = JobSubmissionFiles.getStagingDir(
-              new Cluster(conf), conf);
+        new Cluster(conf), conf);
       stagingDir.getFileSystem(conf).mkdirs(stagingDir);
 
       try {
         new DistCp(conf, options).execute();
       } catch (Throwable t) {
-        Assert.assertEquals(stagingDir.getFileSystem(conf).
-            listStatus(stagingDir).length, 0);
+        Assert.assertEquals(stagingDir.getFileSystem(conf).listStatus(stagingDir).length, 0);
       }
     } catch (Exception e) {
       LOG.error("Exception encountered ", e);
       Assert.fail("testCleanup failed " + e.getMessage());
     }
   }
-  
+
   private void addEntries(Path listFile, String... entries) throws IOException {
     OutputStream out = fs.create(listFile);
     try {
-      for (String entry : entries){
+      for (String entry : entries) {
         out.write((root + "/" + entry).getBytes());
         out.write("\n".getBytes());
       }
@@ -558,7 +538,7 @@ public class TestIntegration {
   }
 
   private void createFiles(String... entries) throws IOException {
-    for (String entry : entries){
+    for (String entry : entries) {
       OutputStream out = fs.create(new Path(root + "/" + entry));
       try {
         out.write((root + "/" + entry).getBytes());
@@ -568,7 +548,7 @@ public class TestIntegration {
       }
     }
   }
-  
+
   private void createWithContents(String entry, byte[] contents) throws IOException {
     OutputStream out = fs.create(new Path(root + "/" + entry));
     try {
@@ -579,19 +559,19 @@ public class TestIntegration {
   }
 
   private void mkdirs(String... entries) throws IOException {
-    for (String entry : entries){
+    for (String entry : entries) {
       fs.mkdirs(new Path(entry));
     }
   }
-    
+
   private void runTest(Path listFile, Path target, boolean targetExists,
-      boolean sync) throws IOException {
+                       boolean sync) throws IOException {
     runTest(listFile, target, targetExists, sync, false, false);
   }
-  
-  private void runTest(Path listFile, Path target, boolean targetExists, 
-      boolean sync, boolean delete,
-      boolean overwrite) throws IOException {
+
+  private void runTest(Path listFile, Path target, boolean targetExists,
+                       boolean sync, boolean delete,
+                       boolean overwrite) throws IOException {
     DistCpOptions options = new DistCpOptions(listFile, target);
     options.setSyncFolder(sync);
     options.setDeleteMissing(delete);
@@ -607,7 +587,7 @@ public class TestIntegration {
 
   private void checkResult(Path target, int count, String... relPaths) throws IOException {
     Assert.assertEquals(count, fs.listStatus(target).length);
-    if (relPaths == null || relPaths.length == 0) {
+    if ((relPaths == null) || (relPaths.length == 0)) {
       Assert.assertTrue(target.toString(), fs.exists(target));
       return;
     }

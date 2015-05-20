@@ -33,8 +33,8 @@ import org.apache.hadoop.mapreduce.lib.input.SequenceFileRecordReader;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskID;
-
 import java.io.IOException;
+
 
 /**
  * The DynamicInputChunk represents a single chunk of work, when used in
@@ -58,9 +58,9 @@ class DynamicInputChunk<K, V> {
   private SequenceFileRecordReader<K, V> reader;
   private SequenceFile.Writer writer;
 
-  private static void initializeChunkInvariants(Configuration config)
-                                                  throws IOException {
+  private static void initializeChunkInvariants(Configuration config) throws IOException {
     configuration = config;
+
     Path listingFilePath = new Path(getListingFilePath(configuration));
     chunkRootPath = new Path(listingFilePath.getParent(), "chunkDir");
     fs = chunkRootPath.getFileSystem(configuration);
@@ -69,7 +69,7 @@ class DynamicInputChunk<K, V> {
 
   private static String getListingFilePath(Configuration configuration) {
     final String listingFileString = configuration.get(
-            DistCpConstants.CONF_LABEL_LISTING_FILE_PATH, "");
+      DistCpConstants.CONF_LABEL_LISTING_FILE_PATH, "");
     assert !listingFileString.equals("") : "Listing file not found.";
     return listingFileString;
   }
@@ -78,10 +78,10 @@ class DynamicInputChunk<K, V> {
     return chunkRootPath != null;
   }
 
-  private DynamicInputChunk(String chunkId, Configuration configuration)
-                                                      throws IOException {
-    if (!areInvariantsInitialized())
+  private DynamicInputChunk(String chunkId, Configuration configuration) throws IOException {
+    if (!areInvariantsInitialized()) {
       initializeChunkInvariants(configuration);
+    }
 
     chunkFilePath = new Path(chunkRootPath, chunkFilePrefix + chunkId);
     openForWrite();
@@ -90,9 +90,9 @@ class DynamicInputChunk<K, V> {
 
   private void openForWrite() throws IOException {
     writer = SequenceFile.createWriter(
-            chunkFilePath.getFileSystem(configuration), configuration,
-            chunkFilePath, Text.class, CopyListingFileStatus.class,
-            SequenceFile.CompressionType.NONE);
+      chunkFilePath.getFileSystem(configuration), configuration,
+      chunkFilePath, Text.class, CopyListingFileStatus.class,
+      SequenceFile.CompressionType.NONE);
 
   }
 
@@ -108,7 +108,7 @@ class DynamicInputChunk<K, V> {
    * @throws IOException Exception on failure to create the chunk.
    */
   public static DynamicInputChunk createChunkForWrite(String chunkId,
-                          Configuration configuration) throws IOException {
+                                                      Configuration configuration) throws IOException {
     return new DynamicInputChunk(chunkId, configuration);
   }
 
@@ -142,21 +142,20 @@ class DynamicInputChunk<K, V> {
   }
 
   private DynamicInputChunk(Path chunkFilePath,
-                            TaskAttemptContext taskAttemptContext)
-                                   throws IOException, InterruptedException {
-    if (!areInvariantsInitialized())
+                            TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
+    if (!areInvariantsInitialized()) {
       initializeChunkInvariants(taskAttemptContext.getConfiguration());
+    }
 
     this.chunkFilePath = chunkFilePath;
     openForRead(taskAttemptContext);
   }
 
-  private void openForRead(TaskAttemptContext taskAttemptContext)
-          throws IOException, InterruptedException {
+  private void openForRead(TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
     reader = new SequenceFileRecordReader<K, V>();
     reader.initialize(new FileSplit(chunkFilePath, 0,
-            DistCpUtils.getFileSize(chunkFilePath, configuration), null),
-            taskAttemptContext);
+        DistCpUtils.getFileSize(chunkFilePath, configuration), null),
+      taskAttemptContext);
   }
 
   /**
@@ -170,13 +169,13 @@ class DynamicInputChunk<K, V> {
    * @throws IOException Exception on failure.
    * @throws InterruptedException Exception on failure.
    */
-  public static DynamicInputChunk acquire(TaskAttemptContext taskAttemptContext)
-                                      throws IOException, InterruptedException {
-    if (!areInvariantsInitialized())
-        initializeChunkInvariants(taskAttemptContext.getConfiguration());
+  public static DynamicInputChunk acquire(TaskAttemptContext taskAttemptContext) throws IOException,
+                                                                                        InterruptedException {
+    if (!areInvariantsInitialized()) {
+      initializeChunkInvariants(taskAttemptContext.getConfiguration());
+    }
 
-    String taskId
-            = taskAttemptContext.getTaskAttemptID().getTaskID().toString();
+    String taskId = taskAttemptContext.getTaskAttemptID().getTaskID().toString();
     Path acquiredFilePath = new Path(chunkRootPath, taskId);
 
     if (fs.exists(acquiredFilePath)) {
@@ -188,9 +187,9 @@ class DynamicInputChunk<K, V> {
       if (fs.rename(chunkFile.getPath(), acquiredFilePath)) {
         LOG.info(taskId + " acquired " + chunkFile.getPath());
         return new DynamicInputChunk(acquiredFilePath, taskAttemptContext);
-      }
-      else
+      } else {
         LOG.warn(taskId + " could not acquire " + chunkFile.getPath());
+      }
     }
 
     return null;
@@ -210,9 +209,9 @@ class DynamicInputChunk<K, V> {
     }
   }
 
-  static FileStatus [] getListOfChunkFiles() throws IOException {
+  static FileStatus[] getListOfChunkFiles() throws IOException {
     Path chunkFilePattern = new Path(chunkRootPath, chunkFilePrefix + "*");
-    FileStatus chunkFiles[] = fs.globStatus(chunkFilePattern);
+    FileStatus[] chunkFiles = fs.globStatus(chunkFilePattern);
     numChunksLeft = chunkFiles.length;
     return chunkFiles;
   }
@@ -229,7 +228,7 @@ class DynamicInputChunk<K, V> {
    * Getter for the record-reader, opened to the chunk-file.
    * @return Opened Sequence-file reader.
    */
-  public SequenceFileRecordReader<K,V> getReader() {
+  public SequenceFileRecordReader<K, V> getReader() {
     assert reader != null : "Reader un-initialized!";
     return reader;
   }

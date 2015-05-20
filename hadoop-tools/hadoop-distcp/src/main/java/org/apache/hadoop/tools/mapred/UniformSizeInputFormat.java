@@ -28,14 +28,18 @@ import org.apache.hadoop.tools.DistCpConstants;
 import org.apache.hadoop.tools.util.DistCpUtils;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.InputFormat;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileRecordReader;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.conf.Configuration;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
+
 
 /**
  * UniformSizeInputFormat extends the InputFormat<> class, to produce
@@ -44,10 +48,8 @@ import java.util.ArrayList;
  * that the total-number of bytes to be copied for each input split is
  * uniform.
  */
-public class UniformSizeInputFormat
-    extends InputFormat<Text, CopyListingFileStatus> {
-  private static final Log LOG
-                = LogFactory.getLog(UniformSizeInputFormat.class);
+public class UniformSizeInputFormat extends InputFormat<Text, CopyListingFileStatus> {
+  private static final Log LOG = LogFactory.getLog(UniformSizeInputFormat.class);
 
   /**
    * Implementation of InputFormat::getSplits(). Returns a list of InputSplits,
@@ -59,17 +61,18 @@ public class UniformSizeInputFormat
    * @throws InterruptedException
    */
   @Override
-  public List<InputSplit> getSplits(JobContext context)
-                      throws IOException, InterruptedException {
+  public List<InputSplit> getSplits(JobContext context) throws IOException, InterruptedException {
     Configuration configuration = context.getConfiguration();
     int numSplits = DistCpUtils.getInt(configuration,
-                                       JobContext.NUM_MAPS);
+      JobContext.NUM_MAPS);
 
-    if (numSplits == 0) return new ArrayList<InputSplit>();
+    if (numSplits == 0) {
+      return new ArrayList<InputSplit>();
+    }
 
     return getSplits(configuration, numSplits,
-                     DistCpUtils.getLong(configuration,
-                          DistCpConstants.CONF_LABEL_TOTAL_BYTES_TO_BE_COPIED));
+      DistCpUtils.getLong(configuration,
+        DistCpConstants.CONF_LABEL_TOTAL_BYTES_TO_BE_COPIED));
   }
 
   private List<InputSplit> getSplits(Configuration configuration, int numSplits,
@@ -87,19 +90,20 @@ public class UniformSizeInputFormat
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Average bytes per map: " + nBytesPerSplit +
-          ", Number of maps: " + numSplits + ", total size: " + totalSizeBytes);
+        ", Number of maps: " + numSplits + ", total size: " + totalSizeBytes);
     }
-    SequenceFile.Reader reader=null;
+
+    SequenceFile.Reader reader = null;
     try {
       reader = getListingFileReader(configuration);
       while (reader.next(srcRelPath, srcFileStatus)) {
         // If adding the current file would cause the bytes per map to exceed
         // limit. Add the current file to new split
-        if (currentSplitSize + srcFileStatus.getLen() > nBytesPerSplit && lastPosition != 0) {
+        if (((currentSplitSize + srcFileStatus.getLen()) > nBytesPerSplit) && (lastPosition != 0)) {
           FileSplit split = new FileSplit(listingFilePath, lastSplitStart,
-              lastPosition - lastSplitStart, null);
+            lastPosition - lastSplitStart, null);
           if (LOG.isDebugEnabled()) {
-            LOG.debug ("Creating split : " + split + ", bytes in split: " + currentSplitSize);
+            LOG.debug("Creating split : " + split + ", bytes in split: " + currentSplitSize);
           }
           splits.add(split);
           lastSplitStart = lastPosition;
@@ -110,9 +114,9 @@ public class UniformSizeInputFormat
       }
       if (lastPosition > lastSplitStart) {
         FileSplit split = new FileSplit(listingFilePath, lastSplitStart,
-            lastPosition - lastSplitStart, null);
+          lastPosition - lastSplitStart, null);
         if (LOG.isDebugEnabled()) {
-          LOG.info ("Creating split : " + split + ", bytes in split: " + currentSplitSize);
+          LOG.info("Creating split : " + split + ", bytes in split: " + currentSplitSize);
         }
         splits.add(split);
       }
@@ -125,30 +129,27 @@ public class UniformSizeInputFormat
   }
 
   private static Path getListingFilePath(Configuration configuration) {
-    final String listingFilePathString =
-            configuration.get(DistCpConstants.CONF_LABEL_LISTING_FILE_PATH, "");
+    final String listingFilePathString = configuration.get(DistCpConstants.CONF_LABEL_LISTING_FILE_PATH, "");
 
-    assert !listingFilePathString.equals("")
-              : "Couldn't find listing file. Invalid input.";
+    assert !listingFilePathString.equals("") : "Couldn't find listing file. Invalid input.";
     return new Path(listingFilePathString);
   }
 
   private SequenceFile.Reader getListingFileReader(Configuration configuration) {
-
     final Path listingFilePath = getListingFilePath(configuration);
     try {
       final FileSystem fileSystem = listingFilePath.getFileSystem(configuration);
-      if (!fileSystem.exists(listingFilePath))
-        throw new IllegalArgumentException("Listing file doesn't exist at: "
-                                           + listingFilePath);
+      if (!fileSystem.exists(listingFilePath)) {
+        throw new IllegalArgumentException("Listing file doesn't exist at: " +
+          listingFilePath);
+      }
 
       return new SequenceFile.Reader(configuration,
-                                     SequenceFile.Reader.file(listingFilePath));
-    }
-    catch (IOException exception) {
+        SequenceFile.Reader.file(listingFilePath));
+    } catch (IOException exception) {
       LOG.error("Couldn't find listing file at: " + listingFilePath, exception);
-      throw new IllegalArgumentException("Couldn't find listing-file at: "
-                                         + listingFilePath, exception);
+      throw new IllegalArgumentException("Couldn't find listing-file at: " +
+        listingFilePath, exception);
     }
   }
 
@@ -162,9 +163,8 @@ public class UniformSizeInputFormat
    * @throws InterruptedException
    */
   @Override
-  public RecordReader<Text, CopyListingFileStatus> createRecordReader(
-      InputSplit split, TaskAttemptContext context)
-      throws IOException, InterruptedException {
+  public RecordReader<Text, CopyListingFileStatus> createRecordReader(InputSplit split, TaskAttemptContext context)
+                                                               throws IOException, InterruptedException {
     return new SequenceFileRecordReader<Text, CopyListingFileStatus>();
   }
 }

@@ -25,23 +25,22 @@ import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.io.retry.RetryPolicy.RetryAction;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.util.ThreadUtil;
-
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+
 
 /**
  * This class represents commands that be retried on failure, in a configurable
  * manner.
  */
 public abstract class RetriableCommand {
-
   private static Log LOG = LogFactory.getLog(RetriableCommand.class);
 
   private static final long DELAY_MILLISECONDS = 500;
-  private static final int  MAX_RETRIES        = 3;
+  private static final int MAX_RETRIES = 3;
 
-  private RetryPolicy retryPolicy = RetryPolicies.
-      exponentialBackoffRetry(MAX_RETRIES, DELAY_MILLISECONDS, TimeUnit.MILLISECONDS);
+  private RetryPolicy retryPolicy = RetryPolicies.exponentialBackoffRetry(MAX_RETRIES, DELAY_MILLISECONDS,
+    TimeUnit.MILLISECONDS);
   protected String description;
 
   /**
@@ -85,11 +84,12 @@ public abstract class RetriableCommand {
     while (true) {
       try {
         return doExecute(arguments);
-      } catch(Exception exception) {
+      } catch (Exception exception) {
         LOG.error("Failure in Retriable command: " + description, exception);
         latestException = exception;
       }
       counter++;
+
       RetryAction action = retryPolicy.shouldRetry(latestException, counter, 0, true);
       if (action.action == RetryPolicy.RetryAction.RetryDecision.RETRY) {
         ThreadUtil.sleepAtLeastIgnoreInterrupts(action.delayMillis);
@@ -99,7 +99,7 @@ public abstract class RetriableCommand {
     }
 
     throw new IOException("Couldn't run retriable-command: " + description,
-                          latestException);
+      latestException);
   }
 
   /**

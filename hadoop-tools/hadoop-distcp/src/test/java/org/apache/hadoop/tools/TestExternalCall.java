@@ -30,13 +30,12 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.security.Permission;
 
-public class TestExternalCall {
 
+public class TestExternalCall {
   private static final Log LOG = LogFactory.getLog(TestExternalCall.class);
 
   private static FileSystem fs;
@@ -52,13 +51,12 @@ public class TestExternalCall {
 
   @Before
   public void setup() {
-
     securityManager = System.getSecurityManager();
     System.setSecurityManager(new NoExitSecurityManager());
     try {
       fs = FileSystem.get(getConf());
       root = new Path("target/tmp").makeQualified(fs.getUri(),
-          fs.getWorkingDirectory()).toString();
+        fs.getWorkingDirectory()).toString();
       TestDistCpUtils.delete(fs, root);
     } catch (IOException e) {
       LOG.error("Exception encountered ", e);
@@ -69,28 +67,29 @@ public class TestExternalCall {
   public void tearDown() {
     System.setSecurityManager(securityManager);
   }
-/**
- * test methods run end execute of DistCp class. silple copy file
- * @throws Exception 
- */
+
+  /**
+   * test methods run end execute of DistCp class. silple copy file
+   * @throws Exception
+   */
   @Test
   public void testCleanup() throws Exception {
+    Configuration conf = getConf();
 
-      Configuration conf = getConf();
+    Path stagingDir = JobSubmissionFiles.getStagingDir(new Cluster(conf),
+      conf);
+    stagingDir.getFileSystem(conf).mkdirs(stagingDir);
 
-      Path stagingDir = JobSubmissionFiles.getStagingDir(new Cluster(conf),
-          conf);
-      stagingDir.getFileSystem(conf).mkdirs(stagingDir);
-      Path soure = createFile("tmp.txt");
-      Path target = createFile("target.txt");
+    Path soure = createFile("tmp.txt");
+    Path target = createFile("target.txt");
 
-      DistCp distcp = new DistCp(conf, null);
-      String[] arg = { soure.toString(), target.toString() };
+    DistCp distcp = new DistCp(conf, null);
+    String[] arg = { soure.toString(), target.toString() };
 
-      distcp.run(arg);
-      Assert.assertTrue(fs.exists(target));
+    distcp.run(arg);
+    Assert.assertTrue(fs.exists(target));
 
-  
+
   }
 
   private Path createFile(String fname) throws IOException {
@@ -107,21 +106,19 @@ public class TestExternalCall {
 
   /**
    * test main method of DistCp. Method should to call System.exit().
-   * 
+   *
    */
   @Test
   public void testCleanupTestViaToolRunner() throws IOException, InterruptedException {
-
     Configuration conf = getConf();
 
     Path stagingDir = JobSubmissionFiles.getStagingDir(new Cluster(conf), conf);
     stagingDir.getFileSystem(conf).mkdirs(stagingDir);
-   
+
     Path soure = createFile("tmp.txt");
     Path target = createFile("target.txt");
     try {
-
-      String[] arg = {target.toString(),soure.toString()};
+      String[] arg = { target.toString(), soure.toString() };
       DistCp.main(arg);
       Assert.fail();
 
@@ -129,7 +126,7 @@ public class TestExternalCall {
       Assert.assertTrue(fs.exists(target));
       Assert.assertEquals(t.status, 0);
       Assert.assertEquals(
-          stagingDir.getFileSystem(conf).listStatus(stagingDir).length, 0);
+        stagingDir.getFileSystem(conf).listStatus(stagingDir).length, 0);
     }
 
   }

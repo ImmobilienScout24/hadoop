@@ -29,18 +29,20 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.JobSubmissionFiles;
 import org.apache.hadoop.mapreduce.Cluster;
-import org.apache.hadoop.tools.CopyListing.*;
+import org.apache.hadoop.tools.CopyListing.AclsNotSupportedException;
+import org.apache.hadoop.tools.CopyListing.DuplicateFileException;
+import org.apache.hadoop.tools.CopyListing.InvalidInputException;
+import org.apache.hadoop.tools.CopyListing.XAttrsNotSupportedException;
 import org.apache.hadoop.tools.mapred.CopyMapper;
 import org.apache.hadoop.tools.mapred.CopyOutputFormat;
 import org.apache.hadoop.tools.util.DistCpUtils;
 import org.apache.hadoop.util.ShutdownHookManager;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-
 import java.io.IOException;
 import java.util.Random;
-
 import com.google.common.annotations.VisibleForTesting;
+
 
 /**
  * DistCp is the main driver-class for DistCpV2.
@@ -52,7 +54,6 @@ import com.google.common.annotations.VisibleForTesting;
  * behaviour.
  */
 public class DistCp extends Configured implements Tool {
-
   /**
    * Priority of the ResourceManager shutdown hook.
    */
@@ -83,14 +84,15 @@ public class DistCp extends Configured implements Tool {
     config.addResource(DISTCP_DEFAULT_XML);
     setConf(config);
     this.inputOptions = inputOptions;
-    this.metaFolder   = createMetaFolderPath();
+    this.metaFolder = createMetaFolderPath();
   }
 
   /**
    * To be used with the ToolRunner. Not for public consumption.
    */
   @VisibleForTesting
-  public DistCp() {}
+  public DistCp() {
+  }
 
   /**
    * Implementation of Tool::run(). Orchestrates the copy of source file(s)
@@ -100,12 +102,13 @@ public class DistCp extends Configured implements Tool {
    * @param argv List of arguments passed to DistCp, from the ToolRunner.
    * @return On success, it returns 0. Else, -1.
    */
+  @Override
   public int run(String[] argv) {
     if (argv.length < 1) {
       OptionsParser.usage();
       return DistCpConstants.INVALID_ARGUMENT;
     }
-    
+
     try {
       inputOptions = (OptionsParser.parse(argv));
       setTargetPathExists();
@@ -113,10 +116,10 @@ public class DistCp extends Configured implements Tool {
     } catch (Throwable e) {
       LOG.error("Invalid arguments: ", e);
       System.err.println("Invalid arguments: " + e.getMessage());
-      OptionsParser.usage();      
+      OptionsParser.usage();
       return DistCpConstants.INVALID_ARGUMENT;
     }
-    
+
     try {
       execute();
     } catch (InvalidInputException e) {
@@ -150,7 +153,7 @@ public class DistCp extends Configured implements Tool {
 
     Job job = null;
     try {
-      synchronized(this) {
+      synchronized (this) {
         //Don't cleanup while we are setting up.
         metaFolder = createMetaFolderPath();
         jobFS = metaFolder.getFileSystem(getConf());
@@ -169,11 +172,11 @@ public class DistCp extends Configured implements Tool {
 
     String jobID = job.getJobID().toString();
     job.getConfiguration().set(DistCpConstants.CONF_LABEL_DISTCP_JOB_ID, jobID);
-    
+
     LOG.info("DistCp job-id: " + jobID);
     if (inputOptions.shouldBlock() && !job.waitForCompletion(true)) {
-      throw new IOException("DistCp failure: Job " + jobID + " has failed: "
-          + job.getStatus().getFailureInfo());
+      throw new IOException("DistCp failure: Job " + jobID + " has failed: " +
+        job.getStatus().getFailureInfo());
     }
     return job;
   }
@@ -187,9 +190,10 @@ public class DistCp extends Configured implements Tool {
     FileSystem targetFS = target.getFileSystem(getConf());
     boolean targetExists = targetFS.exists(target);
     inputOptions.setTargetPathExists(targetExists);
-    getConf().setBoolean(DistCpConstants.CONF_LABEL_TARGET_PATH_EXISTS, 
-        targetExists);
+    getConf().setBoolean(DistCpConstants.CONF_LABEL_TARGET_PATH_EXISTS,
+      targetExists);
   }
+
   /**
    * Create Job object for submitting it, with all the configuration
    *
@@ -199,8 +203,10 @@ public class DistCp extends Configured implements Tool {
   private Job createJob() throws IOException {
     String jobName = "distcp";
     String userChosenName = getConf().get(JobContext.JOB_NAME);
-    if (userChosenName != null)
+    if (userChosenName != null) {
       jobName += ": " + userChosenName;
+    }
+
     Job job = Job.getInstance(getConf());
     job.setJobName(jobName);
     job.setInputFormatClass(DistCpUtils.getStrategy(getConf(), inputOptions));
@@ -214,7 +220,7 @@ public class DistCp extends Configured implements Tool {
     job.setOutputFormatClass(CopyOutputFormat.class);
     job.getConfiguration().set(JobContext.MAP_SPECULATIVE, "false");
     job.getConfiguration().set(JobContext.NUM_MAPS,
-                  String.valueOf(inputOptions.getMaxMaps()));
+      String.valueOf(inputOptions.getMaxMaps()));
 
     if (inputOptions.getSslConfigurationFile() != null) {
       setupSSLConfig(job);
@@ -231,10 +237,9 @@ public class DistCp extends Configured implements Tool {
    * @param job - Reference to job's handle
    * @throws java.io.IOException - Exception if unable to locate ssl config file
    */
-  private void setupSSLConfig(Job job) throws IOException  {
+  private void setupSSLConfig(Job job) throws IOException {
     Configuration configuration = job.getConfiguration();
-    Path sslConfigPath = new Path(configuration.
-        getResource(inputOptions.getSslConfigurationFile()).toString());
+    Path sslConfigPath = new Path(configuration.getResource(inputOptions.getSslConfigurationFile()).toString());
 
     addSSLFilesToDistCache(job, sslConfigPath);
     configuration.set(DistCpConstants.CONF_LABEL_SSL_CONF, sslConfigPath.getName());
@@ -257,21 +262,21 @@ public class DistCp extends Configured implements Tool {
     sslConf.addResource(sslConfigPath);
 
     Path localStorePath = getLocalStorePath(sslConf,
-                            DistCpConstants.CONF_LABEL_SSL_TRUST_STORE_LOCATION);
+      DistCpConstants.CONF_LABEL_SSL_TRUST_STORE_LOCATION);
     job.addCacheFile(localStorePath.makeQualified(localFS.getUri(),
-                                      localFS.getWorkingDirectory()).toUri());
+        localFS.getWorkingDirectory()).toUri());
     configuration.set(DistCpConstants.CONF_LABEL_SSL_TRUST_STORE_LOCATION,
-                      localStorePath.getName());
+      localStorePath.getName());
 
     localStorePath = getLocalStorePath(sslConf,
-                             DistCpConstants.CONF_LABEL_SSL_KEY_STORE_LOCATION);
+      DistCpConstants.CONF_LABEL_SSL_KEY_STORE_LOCATION);
     job.addCacheFile(localStorePath.makeQualified(localFS.getUri(),
-                                      localFS.getWorkingDirectory()).toUri());
+        localFS.getWorkingDirectory()).toUri());
     configuration.set(DistCpConstants.CONF_LABEL_SSL_KEY_STORE_LOCATION,
-                                      localStorePath.getName());
+      localStorePath.getName());
 
     job.addCacheFile(sslConfigPath.makeQualified(localFS.getUri(),
-                                      localFS.getWorkingDirectory()).toUri());
+        localFS.getWorkingDirectory()).toUri());
 
   }
 
@@ -288,7 +293,7 @@ public class DistCp extends Configured implements Tool {
       return new Path(sslConf.get(storeKey));
     } else {
       throw new IOException("Store for " + storeKey + " is not set in " +
-          inputOptions.getSslConfigurationFile());
+        inputOptions.getSslConfigurationFile());
     }
   }
 
@@ -303,7 +308,7 @@ public class DistCp extends Configured implements Tool {
     Path targetPath = inputOptions.getTargetPath();
     FileSystem targetFS = targetPath.getFileSystem(configuration);
     targetPath = targetPath.makeQualified(targetFS.getUri(),
-                                          targetFS.getWorkingDirectory());
+      targetFS.getWorkingDirectory());
     if (inputOptions.shouldPreserve(DistCpOptions.FileAttribute.ACL)) {
       DistCpUtils.checkFileSystemAclSupport(targetFS);
     }
@@ -315,12 +320,13 @@ public class DistCp extends Configured implements Tool {
       if (workDir == null) {
         workDir = targetPath.getParent();
       }
-      workDir = new Path(workDir, WIP_PREFIX + targetPath.getName()
-                                + rand.nextInt());
+      workDir = new Path(workDir, WIP_PREFIX + targetPath.getName() +
+        rand.nextInt());
+
       FileSystem workFS = workDir.getFileSystem(configuration);
       if (!DistCpUtils.compareFs(targetFS, workFS)) {
         throw new IllegalArgumentException("Work path " + workDir +
-            " and target path " + targetPath + " are in different file system");
+          " and target path " + targetPath + " are in different file system");
       }
       CopyOutputFormat.setWorkingDirectory(job, workDir);
     } else {
@@ -349,7 +355,7 @@ public class DistCp extends Configured implements Tool {
   protected Path createInputFileListing(Job job) throws IOException {
     Path fileListingPath = getFileListingPath();
     CopyListing copyListing = CopyListing.getCopyListing(job.getConfiguration(),
-        job.getCredentials(), inputOptions);
+      job.getCredentials(), inputOptions);
     copyListing.buildListing(fileListingPath, inputOptions);
     return fileListingPath;
   }
@@ -377,11 +383,12 @@ public class DistCp extends Configured implements Tool {
   private Path createMetaFolderPath() throws Exception {
     Configuration configuration = getConf();
     Path stagingDir = JobSubmissionFiles.getStagingDir(
-            new Cluster(configuration), configuration);
+      new Cluster(configuration), configuration);
     Path metaFolderPath = new Path(stagingDir, PREFIX + String.valueOf(rand.nextInt()));
-    if (LOG.isDebugEnabled())
+    if (LOG.isDebugEnabled()) {
       LOG.debug("Meta folder location: " + metaFolderPath);
-    configuration.set(DistCpConstants.CONF_LABEL_META_FOLDER, metaFolderPath.toString());    
+    }
+    configuration.set(DistCpConstants.CONF_LABEL_META_FOLDER, metaFolderPath.toString());
     return metaFolderPath;
   }
 
@@ -390,7 +397,7 @@ public class DistCp extends Configured implements Tool {
    * and invokes the DistCp::run() method, via the ToolRunner.
    * @param argv Command-line arguments sent to DistCp.
    */
-  public static void main(String argv[]) {
+  public static void main(String[] argv) {
     int exitCode;
     try {
       DistCp distCp = new DistCp();
@@ -399,8 +406,7 @@ public class DistCp extends Configured implements Tool {
       ShutdownHookManager.get().addShutdownHook(CLEANUP,
         SHUTDOWN_HOOK_PRIORITY);
       exitCode = ToolRunner.run(getDefaultConf(), distCp, argv);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       LOG.error("Couldn't complete DistCp operation: ", e);
       exitCode = DistCpConstants.UNKNOWN_ERROR;
     }
@@ -420,7 +426,9 @@ public class DistCp extends Configured implements Tool {
 
   private synchronized void cleanup() {
     try {
-      if (metaFolder == null) return;
+      if (metaFolder == null) {
+        return;
+      }
 
       jobFS.delete(metaFolder, true);
       metaFolder = null;
@@ -442,7 +450,9 @@ public class DistCp extends Configured implements Tool {
 
     @Override
     public void run() {
-      if (distCp.isSubmitted()) return;
+      if (distCp.isSubmitted()) {
+        return;
+      }
 
       distCp.cleanup();
     }

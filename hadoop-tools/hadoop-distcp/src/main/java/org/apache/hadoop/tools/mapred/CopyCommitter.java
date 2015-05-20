@@ -27,16 +27,22 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobStatus;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
-import org.apache.hadoop.tools.*;
+import org.apache.hadoop.tools.CopyListing;
+import org.apache.hadoop.tools.CopyListingFileStatus;
+import org.apache.hadoop.tools.DistCpConstants;
+import org.apache.hadoop.tools.DistCpOptions;
+import org.apache.hadoop.tools.GlobbedCopyListing;
 import org.apache.hadoop.tools.DistCpOptions.FileAttribute;
 import org.apache.hadoop.tools.util.DistCpUtils;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+
 
 /**
  * The CopyCommitter class is DistCp's OutputCommitter implementation. It is
@@ -57,7 +63,7 @@ public class CopyCommitter extends FileOutputCommitter {
   private boolean syncFolder = false;
   private boolean overwrite = false;
   private boolean targetPathExists = true;
-  
+
   /**
    * Create a output committer
    *
@@ -77,15 +83,14 @@ public class CopyCommitter extends FileOutputCommitter {
     syncFolder = conf.getBoolean(DistCpConstants.CONF_LABEL_SYNC_FOLDERS, false);
     overwrite = conf.getBoolean(DistCpConstants.CONF_LABEL_OVERWRITE, false);
     targetPathExists = conf.getBoolean(DistCpConstants.CONF_LABEL_TARGET_PATH_EXISTS, true);
-    
+
     super.commitJob(jobContext);
 
     cleanupTempFiles(jobContext);
 
     String attributes = conf.get(DistCpConstants.CONF_LABEL_PRESERVE_STATUS);
-    final boolean preserveRawXattrs =
-        conf.getBoolean(DistCpConstants.CONF_LABEL_PRESERVE_RAWXATTRS, false);
-    if ((attributes != null && !attributes.isEmpty()) || preserveRawXattrs) {
+    final boolean preserveRawXattrs = conf.getBoolean(DistCpConstants.CONF_LABEL_PRESERVE_RAWXATTRS, false);
+    if (((attributes != null) && !attributes.isEmpty()) || preserveRawXattrs) {
       preserveFileAttributesForDirectories(conf);
     }
 
@@ -96,8 +101,7 @@ public class CopyCommitter extends FileOutputCommitter {
         commitData(conf);
       }
       taskAttemptContext.setStatus("Commit Successful");
-    }
-    finally {
+    } finally {
       cleanup(conf);
     }
   }
@@ -132,11 +136,10 @@ public class CopyCommitter extends FileOutputCommitter {
   private void deleteAttemptTempFiles(Path targetWorkPath,
                                       FileSystem targetFS,
                                       String jobId) throws IOException {
-
     FileStatus[] tempFiles = targetFS.globStatus(
-        new Path(targetWorkPath, ".distcp.tmp." + jobId.replaceAll("job","attempt") + "*"));
+      new Path(targetWorkPath, ".distcp.tmp." + jobId.replaceAll("job", "attempt") + "*"));
 
-    if (tempFiles != null && tempFiles.length > 0) {
+    if ((tempFiles != null) && (tempFiles.length > 0)) {
       for (FileStatus file : tempFiles) {
         LOG.info("Cleaning up " + file.getPath());
         targetFS.delete(file.getPath(), false);
@@ -169,13 +172,12 @@ public class CopyCommitter extends FileOutputCommitter {
     LOG.info("About to preserve attributes: " + attrSymbols);
 
     EnumSet<FileAttribute> attributes = DistCpUtils.unpackAttributes(attrSymbols);
-    final boolean preserveRawXattrs =
-        conf.getBoolean(DistCpConstants.CONF_LABEL_PRESERVE_RAWXATTRS, false);
+    final boolean preserveRawXattrs = conf.getBoolean(DistCpConstants.CONF_LABEL_PRESERVE_RAWXATTRS, false);
 
     Path sourceListing = new Path(conf.get(DistCpConstants.CONF_LABEL_LISTING_FILE_PATH));
     FileSystem clusterFS = sourceListing.getFileSystem(conf);
     SequenceFile.Reader sourceReader = new SequenceFile.Reader(conf,
-                                      SequenceFile.Reader.file(sourceListing));
+      SequenceFile.Reader.file(sourceListing));
     long totalLen = clusterFS.getFileStatus(sourceListing).getLen();
 
     Path targetRoot = new Path(conf.get(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH));
@@ -189,21 +191,26 @@ public class CopyCommitter extends FileOutputCommitter {
       while (sourceReader.next(srcRelPath, srcFileStatus)) {
         // File-attributes for files are set at the time of copy,
         // in the map-task.
-        if (! srcFileStatus.isDirectory()) continue;
+        if (!srcFileStatus.isDirectory()) {
+          continue;
+        }
 
         Path targetFile = new Path(targetRoot.toString() + "/" + srcRelPath);
+
         //
         // Skip the root folder when syncOrOverwrite is true.
         //
-        if (targetRoot.equals(targetFile) && syncOrOverwrite) continue;
+        if (targetRoot.equals(targetFile) && syncOrOverwrite) {
+          continue;
+        }
 
         FileSystem targetFS = targetFile.getFileSystem(conf);
         DistCpUtils.preserve(targetFS, targetFile, srcFileStatus, attributes,
-            preserveRawXattrs);
+          preserveRawXattrs);
 
         taskAttemptContext.progress();
         taskAttemptContext.setStatus("Preserving status on directory entries. [" +
-            sourceReader.getPosition() * 100 / totalLen + "%]");
+          (sourceReader.getPosition() * 100 / totalLen) + "%]");
       }
     } finally {
       IOUtils.closeStream(sourceReader);
@@ -215,7 +222,7 @@ public class CopyCommitter extends FileOutputCommitter {
   // available at the source.
   private void deleteMissing(Configuration conf) throws IOException {
     LOG.info("-delete option is enabled. About to remove entries from " +
-        "target that are missing in source");
+      "target that are missing in source");
 
     // Sort the source-file listing alphabetically.
     Path sourceListing = new Path(conf.get(DistCpConstants.CONF_LABEL_LISTING_FILE_PATH));
@@ -229,7 +236,9 @@ public class CopyCommitter extends FileOutputCommitter {
     List<Path> targets = new ArrayList<Path>(1);
     Path targetFinalPath = new Path(conf.get(DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH));
     targets.add(targetFinalPath);
+
     DistCpOptions options = new DistCpOptions(targets, new Path("/NONE"));
+
     //
     // Set up options to be the same from the CopyListing.buildListing's perspective,
     // so to collect similar listings as when doing the copy
@@ -237,15 +246,16 @@ public class CopyCommitter extends FileOutputCommitter {
     options.setOverwrite(overwrite);
     options.setSyncFolder(syncFolder);
     options.setTargetPathExists(targetPathExists);
-    
+
     target.buildListing(targetListing, options);
+
     Path sortedTargetListing = DistCpUtils.sortListing(clusterFS, conf, targetListing);
     long totalLen = clusterFS.getFileStatus(sortedTargetListing).getLen();
 
     SequenceFile.Reader sourceReader = new SequenceFile.Reader(conf,
-                                 SequenceFile.Reader.file(sortedSourceListing));
+      SequenceFile.Reader.file(sortedSourceListing));
     SequenceFile.Reader targetReader = new SequenceFile.Reader(conf,
-                                 SequenceFile.Reader.file(sortedTargetListing));
+      SequenceFile.Reader.file(sortedTargetListing));
 
     // Walk both source and target file listings.
     // Delete all from target that doesn't also exist on source.
@@ -260,15 +270,17 @@ public class CopyCommitter extends FileOutputCommitter {
       boolean srcAvailable = sourceReader.next(srcRelPath, srcFileStatus);
       while (targetReader.next(trgtRelPath, trgtFileStatus)) {
         // Skip sources that don't exist on target.
-        while (srcAvailable && trgtRelPath.compareTo(srcRelPath) > 0) {
+        while (srcAvailable && (trgtRelPath.compareTo(srcRelPath) > 0)) {
           srcAvailable = sourceReader.next(srcRelPath, srcFileStatus);
         }
 
-        if (srcAvailable && trgtRelPath.equals(srcRelPath)) continue;
+        if (srcAvailable && trgtRelPath.equals(srcRelPath)) {
+          continue;
+        }
 
         // Target doesn't exist at source. Delete.
         boolean result = (!targetFS.exists(trgtFileStatus.getPath()) ||
-            targetFS.delete(trgtFileStatus.getPath(), true));
+          targetFS.delete(trgtFileStatus.getPath(), true));
         if (result) {
           LOG.info("Deleted " + trgtFileStatus.getPath() + " - Missing at source");
           deletedEntries++;
@@ -277,7 +289,7 @@ public class CopyCommitter extends FileOutputCommitter {
         }
         taskAttemptContext.progress();
         taskAttemptContext.setStatus("Deleting missing files from target. [" +
-            targetReader.getPosition() * 100 / totalLen + "%]");
+          (targetReader.getPosition() * 100 / totalLen) + "%]");
       }
     } finally {
       IOUtils.closeStream(sourceReader);
@@ -287,7 +299,6 @@ public class CopyCommitter extends FileOutputCommitter {
   }
 
   private void commitData(Configuration conf) throws IOException {
-
     Path workDir = new Path(conf.get(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH));
     Path finalDir = new Path(conf.get(DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH));
     FileSystem targetFS = workDir.getFileSystem(conf);
@@ -296,7 +307,7 @@ public class CopyCommitter extends FileOutputCommitter {
     if (targetFS.exists(finalDir) && targetFS.exists(workDir)) {
       LOG.error("Pre-existing final-path found at: " + finalDir);
       throw new IOException("Target-path can't be committed to because it " +
-          "exists at " + finalDir + ". Copied data is in temp-dir: " + workDir + ". ");
+        "exists at " + finalDir + ". Copied data is in temp-dir: " + workDir + ". ");
     }
 
     boolean result = targetFS.rename(workDir, finalDir);

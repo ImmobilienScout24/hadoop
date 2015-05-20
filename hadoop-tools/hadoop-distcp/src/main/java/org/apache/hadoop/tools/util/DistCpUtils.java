@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -49,14 +48,13 @@ import org.apache.hadoop.tools.CopyListingFileStatus;
 import org.apache.hadoop.tools.DistCpOptions;
 import org.apache.hadoop.tools.DistCpOptions.FileAttribute;
 import org.apache.hadoop.tools.mapred.UniformSizeInputFormat;
-
 import com.google.common.collect.Maps;
+
 
 /**
  * Utility functions used in DistCp.
  */
 public class DistCpUtils {
-
   private static final Log LOG = LogFactory.getLog(DistCpUtils.class);
 
   /**
@@ -66,10 +64,10 @@ public class DistCpUtils {
    * @return The file-size, in number of bytes.
    * @throws IOException, on failure.
    */
-  public static long getFileSize(Path path, Configuration configuration)
-                                            throws IOException {
-    if (LOG.isDebugEnabled())
+  public static long getFileSize(Path path, Configuration configuration) throws IOException {
+    if (LOG.isDebugEnabled()) {
       LOG.debug("Retrieving file size for: " + path);
+    }
     return path.getFileSystem(configuration).getFileStatus(path).getLen();
   }
 
@@ -120,9 +118,9 @@ public class DistCpUtils {
    * @return Class implementing the strategy specified in options.
    */
   public static Class<? extends InputFormat> getStrategy(Configuration conf,
-                                                                 DistCpOptions options) {
+                                                         DistCpOptions options) {
     String confLabel = "distcp." +
-        options.getCopyStrategy().toLowerCase(Locale.getDefault()) + ".strategy.impl";
+      options.getCopyStrategy().toLowerCase(Locale.getDefault()) + ".strategy.impl";
     return conf.getClass(confLabel, UniformSizeInputFormat.class, InputFormat.class);
   }
 
@@ -142,8 +140,8 @@ public class DistCpUtils {
   public static String getRelativePath(Path sourceRootPath, Path childPath) {
     String childPathString = childPath.toUri().getPath();
     String sourceRootPathString = sourceRootPath.toUri().getPath();
-    return sourceRootPathString.equals("/") ? childPathString :
-        childPathString.substring(sourceRootPathString.length());
+    return sourceRootPathString.equals("/") ? childPathString
+                                            : childPathString.substring(sourceRootPathString.length());
   }
 
   /**
@@ -194,10 +192,8 @@ public class DistCpUtils {
    *                       change or any transient error)
    */
   public static void preserve(FileSystem targetFS, Path path,
-                              CopyListingFileStatus srcFileStatus,
-                              EnumSet<FileAttribute> attributes,
+                              CopyListingFileStatus srcFileStatus, EnumSet<FileAttribute> attributes,
                               boolean preserveRawXattrs) throws IOException {
-
     FileStatus targetFileStatus = targetFS.getFileStatus(path);
     String group = targetFileStatus.getGroup();
     String user = targetFileStatus.getOwner();
@@ -209,13 +205,14 @@ public class DistCpUtils {
       if (!srcAcl.equals(targetAcl)) {
         targetFS.setAcl(path, srcAcl);
       }
+
       // setAcl doesn't preserve sticky bit, so also call setPermission if needed.
       if (srcFileStatus.getPermission().getStickyBit() !=
           targetFileStatus.getPermission().getStickyBit()) {
         targetFS.setPermission(path, srcFileStatus.getPermission());
       }
     } else if (attributes.contains(FileAttribute.PERMISSION) &&
-      !srcFileStatus.getPermission().equals(targetFileStatus.getPermission())) {
+        !srcFileStatus.getPermission().equals(targetFileStatus.getPermission())) {
       targetFS.setPermission(path, srcFileStatus.getPermission());
     }
 
@@ -224,7 +221,7 @@ public class DistCpUtils {
       final String rawNS = XAttr.NameSpace.RAW.name().toLowerCase();
       Map<String, byte[]> srcXAttrs = srcFileStatus.getXAttrs();
       Map<String, byte[]> targetXAttrs = getXAttrs(targetFS, path);
-      if (srcXAttrs != null && !srcXAttrs.equals(targetXAttrs)) {
+      if ((srcXAttrs != null) && !srcXAttrs.equals(targetXAttrs)) {
         for (Entry<String, byte[]> entry : srcXAttrs.entrySet()) {
           String xattrName = entry.getKey();
           if (xattrName.startsWith(rawNS) || preserveXAttrs) {
@@ -254,11 +251,11 @@ public class DistCpUtils {
     if (chown) {
       targetFS.setOwner(path, user, group);
     }
-    
+
     if (attributes.contains(FileAttribute.TIMES)) {
-      targetFS.setTimes(path, 
-          srcFileStatus.getModificationTime(), 
-          srcFileStatus.getAccessTime());
+      targetFS.setTimes(path,
+        srcFileStatus.getModificationTime(),
+        srcFileStatus.getAccessTime());
     }
   }
 
@@ -271,22 +268,21 @@ public class DistCpUtils {
    * @throws IOException if there is an I/O error
    */
   public static List<AclEntry> getAcl(FileSystem fileSystem,
-      FileStatus fileStatus) throws IOException {
-    List<AclEntry> entries = fileSystem.getAclStatus(fileStatus.getPath())
-      .getEntries();
+                                      FileStatus fileStatus) throws IOException {
+    List<AclEntry> entries = fileSystem.getAclStatus(fileStatus.getPath()).getEntries();
     return AclUtil.getAclFromPermAndEntries(fileStatus.getPermission(), entries);
   }
-  
+
   /**
    * Returns a file's all xAttrs.
-   * 
+   *
    * @param fileSystem FileSystem containing the file
    * @param path file path
    * @return Map<String, byte[]> containing all xAttrs
    * @throws IOException if there is an I/O error
    */
   public static Map<String, byte[]> getXAttrs(FileSystem fileSystem,
-      Path path) throws IOException {
+                                              Path path) throws IOException {
     return fileSystem.getXAttrs(path);
   }
 
@@ -302,11 +298,11 @@ public class DistCpUtils {
    * @param preserveRawXAttrs boolean true if preserving raw.* XAttrs
    * @throws IOException if there is an I/O error
    */
-  public static CopyListingFileStatus toCopyListingFileStatus(
-      FileSystem fileSystem, FileStatus fileStatus, boolean preserveAcls, 
-      boolean preserveXAttrs, boolean preserveRawXAttrs) throws IOException {
-    CopyListingFileStatus copyListingFileStatus =
-      new CopyListingFileStatus(fileStatus);
+  public static CopyListingFileStatus toCopyListingFileStatus(FileSystem fileSystem, FileStatus fileStatus,
+                                                              boolean preserveAcls,
+                                                              boolean preserveXAttrs, boolean preserveRawXAttrs)
+                                                       throws IOException {
+    CopyListingFileStatus copyListingFileStatus = new CopyListingFileStatus(fileStatus);
     if (preserveAcls) {
       FsPermission perm = fileStatus.getPermission();
       if (perm.getAclBit()) {
@@ -318,7 +314,7 @@ public class DistCpUtils {
     if (preserveXAttrs || preserveRawXAttrs) {
       Map<String, byte[]> srcXAttrs = fileSystem.getXAttrs(fileStatus.getPath());
       if (preserveXAttrs && preserveRawXAttrs) {
-         copyListingFileStatus.setXAttrs(srcXAttrs);
+        copyListingFileStatus.setXAttrs(srcXAttrs);
       } else {
         Map<String, byte[]> trgXAttrs = Maps.newHashMap();
         final String rawNS = XAttr.NameSpace.RAW.name().toLowerCase();
@@ -347,11 +343,10 @@ public class DistCpUtils {
    * @return Path of the sorted file. Is source file with _sorted appended to the name
    * @throws IOException - Any exception during sort.
    */
-  public static Path sortListing(FileSystem fs, Configuration conf, Path sourceListing)
-      throws IOException {
+  public static Path sortListing(FileSystem fs, Configuration conf, Path sourceListing) throws IOException {
     SequenceFile.Sorter sorter = new SequenceFile.Sorter(fs, Text.class,
       CopyListingFileStatus.class, conf);
-    Path output = new Path(sourceListing.toString() +  "_sorted");
+    Path output = new Path(sourceListing.toString() + "_sorted");
 
     if (fs.exists(output)) {
       fs.delete(output, false);
@@ -370,40 +365,37 @@ public class DistCpUtils {
    * @param fs FileSystem to check
    * @throws AclsNotSupportedException if fs does not support ACLs
    */
-  public static void checkFileSystemAclSupport(FileSystem fs)
-      throws AclsNotSupportedException {
+  public static void checkFileSystemAclSupport(FileSystem fs) throws AclsNotSupportedException {
     try {
       fs.getAclStatus(new Path(Path.SEPARATOR));
     } catch (Exception e) {
-      throw new AclsNotSupportedException("ACLs not supported for file system: "
-        + fs.getUri());
+      throw new AclsNotSupportedException("ACLs not supported for file system: " +
+        fs.getUri());
     }
   }
-  
+
   /**
    * Determines if a file system supports XAttrs by running a getXAttrs request
    * on the file system root. This method is used before distcp job submission
    * to fail fast if the user requested preserving XAttrs, but the file system
    * cannot support XAttrs.
-   * 
+   *
    * @param fs FileSystem to check
    * @throws XAttrsNotSupportedException if fs does not support XAttrs
    */
-  public static void checkFileSystemXAttrSupport(FileSystem fs)
-      throws XAttrsNotSupportedException {
+  public static void checkFileSystemXAttrSupport(FileSystem fs) throws XAttrsNotSupportedException {
     try {
       fs.getXAttrs(new Path(Path.SEPARATOR));
     } catch (Exception e) {
-      throw new XAttrsNotSupportedException("XAttrs not supported for file system: "
-        + fs.getUri());
+      throw new XAttrsNotSupportedException("XAttrs not supported for file system: " +
+        fs.getUri());
     }
   }
 
   /**
    * String utility to convert a number-of-bytes to human readable format.
    */
-  private static ThreadLocal<DecimalFormat> FORMATTER
-                        = new ThreadLocal<DecimalFormat>() {
+  private static ThreadLocal<DecimalFormat> FORMATTER = new ThreadLocal<DecimalFormat>() {
     @Override
     protected DecimalFormat initialValue() {
       return new DecimalFormat("0.0");
@@ -415,14 +407,13 @@ public class DistCpUtils {
   }
 
   public static String getStringDescriptionFor(long nBytes) {
-
-    char units [] = {'B', 'K', 'M', 'G', 'T', 'P'};
+    char[] units = { 'B', 'K', 'M', 'G', 'T', 'P' };
 
     double current = nBytes;
-    double prev    = current;
+    double prev = current;
     int index = 0;
 
-    while ((current = current/1024) >= 1) {
+    while ((current = current / 1024) >= 1) {
       prev = current;
       ++index;
     }
@@ -451,18 +442,17 @@ public class DistCpUtils {
    * @throws IOException if there's an exception while retrieving checksums.
    */
   public static boolean checksumsAreEqual(FileSystem sourceFS, Path source,
-      FileChecksum sourceChecksum, FileSystem targetFS, Path target)
-      throws IOException {
+                                          FileChecksum sourceChecksum, FileSystem targetFS, Path target)
+                                   throws IOException {
     FileChecksum targetChecksum = null;
     try {
-      sourceChecksum = sourceChecksum != null ? sourceChecksum : sourceFS
-          .getFileChecksum(source);
+      sourceChecksum = (sourceChecksum != null) ? sourceChecksum : sourceFS.getFileChecksum(source);
       targetChecksum = targetFS.getFileChecksum(target);
     } catch (IOException e) {
       LOG.error("Unable to retrieve checksum for " + source + " or " + target, e);
     }
-    return (sourceChecksum == null || targetChecksum == null ||
-            sourceChecksum.equals(targetChecksum));
+    return ((sourceChecksum == null) || (targetChecksum == null) ||
+      sourceChecksum.equals(targetChecksum));
   }
 
   /* see if two file systems are the same or not
@@ -477,25 +467,25 @@ public class DistCpUtils {
     if (!srcUri.getScheme().equals(dstUri.getScheme())) {
       return false;
     }
+
     String srcHost = srcUri.getHost();
     String dstHost = dstUri.getHost();
     if ((srcHost != null) && (dstHost != null)) {
       try {
         srcHost = InetAddress.getByName(srcHost).getCanonicalHostName();
         dstHost = InetAddress.getByName(dstHost).getCanonicalHostName();
-      } catch(UnknownHostException ue) {
-        if (LOG.isDebugEnabled())
+      } catch (UnknownHostException ue) {
+        if (LOG.isDebugEnabled()) {
           LOG.debug("Could not compare file-systems. Unknown host: ", ue);
+        }
         return false;
       }
       if (!srcHost.equals(dstHost)) {
         return false;
       }
-    }
-    else if (srcHost == null && dstHost != null) {
+    } else if ((srcHost == null) && (dstHost != null)) {
       return false;
-    }
-    else if (srcHost != null) {
+    } else if (srcHost != null) {
       return false;
     }
 

@@ -18,15 +18,21 @@
 
 package org.apache.hadoop.tools;
 
-import static org.apache.hadoop.fs.permission.AclEntryScope.*;
-import static org.apache.hadoop.fs.permission.AclEntryType.*;
-import static org.apache.hadoop.fs.permission.FsAction.*;
-import static org.junit.Assert.*;
-
+import static org.apache.hadoop.fs.permission.AclEntryScope.ACCESS;
+import static org.apache.hadoop.fs.permission.AclEntryScope.DEFAULT;
+import static org.apache.hadoop.fs.permission.AclEntryType.GROUP;
+import static org.apache.hadoop.fs.permission.AclEntryType.MASK;
+import static org.apache.hadoop.fs.permission.AclEntryType.OTHER;
+import static org.apache.hadoop.fs.permission.AclEntryType.USER;
+import static org.apache.hadoop.fs.permission.FsAction.ALL;
+import static org.apache.hadoop.fs.permission.FsAction.NONE;
+import static org.apache.hadoop.fs.permission.FsAction.READ;
+import static org.apache.hadoop.fs.permission.FsAction.READ_EXECUTE;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -44,16 +50,15 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.ToolRunner;
-
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
 
 /**
  * Tests distcp in combination with HDFS ACLs.
  */
 public class TestDistCpWithAcls {
-
   private static MiniDFSCluster cluster;
   private static Configuration conf;
   private static FileSystem fs;
@@ -61,6 +66,7 @@ public class TestDistCpWithAcls {
   @BeforeClass
   public static void init() throws Exception {
     initCluster(true, true);
+
     // Create this directory structure:
     // /src
     //   /dir1
@@ -69,7 +75,7 @@ public class TestDistCpWithAcls {
     //     /dir2/file2
     //     /dir2/file3
     //   /dir3sticky
-    //   /file1    
+    //   /file1
     fs.mkdirs(new Path("/src/dir1/subdir1"));
     fs.mkdirs(new Path("/src/dir2"));
     fs.create(new Path("/src/dir2/file2")).close();
@@ -79,19 +85,19 @@ public class TestDistCpWithAcls {
 
     // Set a mix of ACLs and plain permissions throughout the tree.
     fs.modifyAclEntries(new Path("/src/dir1"), Arrays.asList(
-      aclEntry(DEFAULT, USER, "bruce", ALL)));
+        aclEntry(DEFAULT, USER, "bruce", ALL)));
 
     fs.modifyAclEntries(new Path("/src/dir2/file2"), Arrays.asList(
-      aclEntry(ACCESS, GROUP, "sales", NONE)));
+        aclEntry(ACCESS, GROUP, "sales", NONE)));
 
     fs.setPermission(new Path("/src/dir2/file3"),
-      new FsPermission((short)0660));
+      new FsPermission((short) 0660));
 
     fs.modifyAclEntries(new Path("/src/file1"), Arrays.asList(
-      aclEntry(ACCESS, USER, "diana", READ)));
+        aclEntry(ACCESS, USER, "diana", READ)));
 
     fs.setPermission(new Path("/src/dir3sticky"),
-      new FsPermission((short)01777));
+      new FsPermission((short) 01777));
   }
 
   @AfterClass
@@ -106,35 +112,41 @@ public class TestDistCpWithAcls {
   public void testPreserveAcls() throws Exception {
     assertRunDistCp(DistCpConstants.SUCCESS, "/dstPreserveAcls");
 
-    assertAclEntries("/dstPreserveAcls/dir1", new AclEntry[] {
-      aclEntry(DEFAULT, USER, ALL),
-      aclEntry(DEFAULT, USER, "bruce", ALL),
-      aclEntry(DEFAULT, GROUP, READ_EXECUTE),
-      aclEntry(DEFAULT, MASK, ALL),
-      aclEntry(DEFAULT, OTHER, READ_EXECUTE) } );
-    assertPermission("/dstPreserveAcls/dir1", (short)0755);
+    assertAclEntries("/dstPreserveAcls/dir1",
+      new AclEntry[] {
+        aclEntry(DEFAULT, USER, ALL),
+        aclEntry(DEFAULT, USER, "bruce", ALL),
+        aclEntry(DEFAULT, GROUP, READ_EXECUTE),
+        aclEntry(DEFAULT, MASK, ALL),
+        aclEntry(DEFAULT, OTHER, READ_EXECUTE)
+      });
+    assertPermission("/dstPreserveAcls/dir1", (short) 0755);
 
-    assertAclEntries("/dstPreserveAcls/dir1/subdir1", new AclEntry[] { });
-    assertPermission("/dstPreserveAcls/dir1/subdir1", (short)0755);
+    assertAclEntries("/dstPreserveAcls/dir1/subdir1", new AclEntry[] {});
+    assertPermission("/dstPreserveAcls/dir1/subdir1", (short) 0755);
 
-    assertAclEntries("/dstPreserveAcls/dir2", new AclEntry[] { });
-    assertPermission("/dstPreserveAcls/dir2", (short)0755);
+    assertAclEntries("/dstPreserveAcls/dir2", new AclEntry[] {});
+    assertPermission("/dstPreserveAcls/dir2", (short) 0755);
 
-    assertAclEntries("/dstPreserveAcls/dir2/file2", new AclEntry[] {
-      aclEntry(ACCESS, GROUP, READ),
-      aclEntry(ACCESS, GROUP, "sales", NONE) } );
-    assertPermission("/dstPreserveAcls/dir2/file2", (short)0644);
+    assertAclEntries("/dstPreserveAcls/dir2/file2",
+      new AclEntry[] {
+        aclEntry(ACCESS, GROUP, READ),
+        aclEntry(ACCESS, GROUP, "sales", NONE)
+      });
+    assertPermission("/dstPreserveAcls/dir2/file2", (short) 0644);
 
-    assertAclEntries("/dstPreserveAcls/dir2/file3", new AclEntry[] { });
-    assertPermission("/dstPreserveAcls/dir2/file3", (short)0660);
+    assertAclEntries("/dstPreserveAcls/dir2/file3", new AclEntry[] {});
+    assertPermission("/dstPreserveAcls/dir2/file3", (short) 0660);
 
-    assertAclEntries("/dstPreserveAcls/dir3sticky", new AclEntry[] { });
-    assertPermission("/dstPreserveAcls/dir3sticky", (short)01777);
+    assertAclEntries("/dstPreserveAcls/dir3sticky", new AclEntry[] {});
+    assertPermission("/dstPreserveAcls/dir3sticky", (short) 01777);
 
-    assertAclEntries("/dstPreserveAcls/file1", new AclEntry[] {
-      aclEntry(ACCESS, USER, "diana", READ),
-      aclEntry(ACCESS, GROUP, READ) } );
-    assertPermission("/dstPreserveAcls/file1", (short)0644);
+    assertAclEntries("/dstPreserveAcls/file1",
+      new AclEntry[] {
+        aclEntry(ACCESS, USER, "diana", READ),
+        aclEntry(ACCESS, GROUP, READ)
+      });
+    assertPermission("/dstPreserveAcls/file1", (short) 0644);
   }
 
   @Test
@@ -160,17 +172,16 @@ public class TestDistCpWithAcls {
    * ACL methods, so we don't need to override them.
    */
   public static class StubFileSystem extends FileSystem {
-
     @Override
     public FSDataOutputStream append(Path f, int bufferSize,
-        Progressable progress) throws IOException {
+                                     Progressable progress) throws IOException {
       return null;
     }
 
     @Override
     public FSDataOutputStream create(Path f, FsPermission permission,
-        boolean overwrite, int bufferSize, short replication, long blockSize,
-        Progressable progress) throws IOException {
+                                     boolean overwrite, int bufferSize, short replication, long blockSize,
+                                     Progressable progress) throws IOException {
       return null;
     }
 
@@ -200,8 +211,7 @@ public class TestDistCpWithAcls {
     }
 
     @Override
-    public boolean mkdirs(Path f, FsPermission permission)
-        throws IOException {
+    public boolean mkdirs(Path f, FsPermission permission) throws IOException {
       return false;
     }
 
@@ -229,12 +239,8 @@ public class TestDistCpWithAcls {
    * @return AclEntry new AclEntry
    */
   private static AclEntry aclEntry(AclEntryScope scope, AclEntryType type,
-      FsAction permission) {
-    return new AclEntry.Builder()
-      .setScope(scope)
-      .setType(type)
-      .setPermission(permission)
-      .build();
+                                   FsAction permission) {
+    return new AclEntry.Builder().setScope(scope).setType(type).setPermission(permission).build();
   }
 
   /**
@@ -247,13 +253,8 @@ public class TestDistCpWithAcls {
    * @return AclEntry new AclEntry
    */
   private static AclEntry aclEntry(AclEntryScope scope, AclEntryType type,
-      String name, FsAction permission) {
-    return new AclEntry.Builder()
-      .setScope(scope)
-      .setType(type)
-      .setName(name)
-      .setPermission(permission)
-      .build();
+                                   String name, FsAction permission) {
+    return new AclEntry.Builder().setScope(scope).setType(type).setName(name).setPermission(permission).build();
   }
 
   /**
@@ -263,10 +264,8 @@ public class TestDistCpWithAcls {
    * @param entries AclEntry[] expected ACL entries
    * @throws Exception if there is any error
    */
-  private static void assertAclEntries(String path, AclEntry[] entries)
-      throws Exception {
-    assertArrayEquals(entries, fs.getAclStatus(new Path(path)).getEntries()
-      .toArray(new AclEntry[0]));
+  private static void assertAclEntries(String path, AclEntry[] entries) throws Exception {
+    assertArrayEquals(entries, fs.getAclStatus(new Path(path)).getEntries().toArray(new AclEntry[0]));
   }
 
   /**
@@ -276,8 +275,7 @@ public class TestDistCpWithAcls {
    * @param perm short expected permission bits
    * @throws Exception if there is any error
    */
-  private static void assertPermission(String path, short perm)
-      throws Exception {
+  private static void assertPermission(String path, short perm) throws Exception {
     assertEquals(perm,
       fs.getFileStatus(new Path(path)).getPermission().toShort());
   }
@@ -290,11 +288,10 @@ public class TestDistCpWithAcls {
    * @param dst String distcp destination
    * @throws Exception if there is any error
    */
-  private static void assertRunDistCp(int exitCode, String dst)
-      throws Exception {
+  private static void assertRunDistCp(int exitCode, String dst) throws Exception {
     DistCp distCp = new DistCp(conf, null);
     assertEquals(exitCode, ToolRunner.run(
-      conf, distCp, new String[] { "-pa", "/src", dst }));
+        conf, distCp, new String[] { "-pa", "/src", dst }));
   }
 
   /**
@@ -304,14 +301,12 @@ public class TestDistCpWithAcls {
    * @param aclsEnabled if true, ACL support is enabled
    * @throws Exception if any step fails
    */
-  private static void initCluster(boolean format, boolean aclsEnabled)
-      throws Exception {
+  private static void initCluster(boolean format, boolean aclsEnabled) throws Exception {
     conf = new Configuration();
     conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_ACLS_ENABLED_KEY, aclsEnabled);
     conf.set(CommonConfigurationKeys.FS_DEFAULT_NAME_KEY, "stubfs:///");
     conf.setClass("fs.stubfs.impl", StubFileSystem.class, FileSystem.class);
-    cluster = new MiniDFSCluster.Builder(conf).numDataNodes(1).format(format)
-      .build();
+    cluster = new MiniDFSCluster.Builder(conf).numDataNodes(1).format(format).build();
     cluster.waitActive();
     fs = cluster.getFileSystem();
   }

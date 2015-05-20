@@ -28,7 +28,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobID;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.tools.CopyListing;
 import org.apache.hadoop.tools.CopyListingFileStatus;
@@ -38,10 +42,10 @@ import org.apache.hadoop.security.Credentials;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+
 
 public class TestDynamicInputFormat {
   private static final Log LOG = LogFactory.getLog(TestDynamicInputFormat.class);
@@ -55,11 +59,12 @@ public class TestDynamicInputFormat {
 
   @BeforeClass
   public static void setup() throws Exception {
-    cluster = new MiniDFSCluster.Builder(getConfigurationForCluster())
-                  .numDataNodes(1).format(true).build();
+    cluster = new MiniDFSCluster.Builder(getConfigurationForCluster()).numDataNodes(1).format(true).build();
 
-    for (int i=0; i<N_FILES; ++i)
+    for (int i = 0; i < N_FILES; ++i) {
       createFile("/tmp/source/" + String.valueOf(i));
+    }
+
     FileSystem fileSystem = cluster.getFileSystem();
     expectedFilePaths.add(fileSystem.listStatus(
         new Path("/tmp/source/0"))[0].getPath().getParent().toString());
@@ -68,7 +73,7 @@ public class TestDynamicInputFormat {
   private static Configuration getConfigurationForCluster() {
     Configuration configuration = new Configuration();
     System.setProperty("test.build.data",
-                       "target/tmp/build/TEST_DYNAMIC_INPUT_FORMAT/data");
+      "target/tmp/build/TEST_DYNAMIC_INPUT_FORMAT/data");
     configuration.set("hadoop.log.dir", "target/tmp");
     LOG.debug("fs.default.name  == " + configuration.get("fs.default.name"));
     LOG.debug("dfs.http.address == " + configuration.get("dfs.http.address"));
@@ -76,13 +81,14 @@ public class TestDynamicInputFormat {
   }
 
   private static DistCpOptions getOptions() throws Exception {
-    Path sourcePath = new Path(cluster.getFileSystem().getUri().toString()
-            + "/tmp/source");
-    Path targetPath = new Path(cluster.getFileSystem().getUri().toString()
-            + "/tmp/target");
+    Path sourcePath = new Path(cluster.getFileSystem().getUri().toString() +
+      "/tmp/source");
+    Path targetPath = new Path(cluster.getFileSystem().getUri().toString() +
+      "/tmp/target");
 
     List<Path> sourceList = new ArrayList<Path>();
     sourceList.add(sourcePath);
+
     DistCpOptions options = new DistCpOptions(sourceList, targetPath);
     options.setMaxMaps(NUM_SPLITS);
     return options;
@@ -95,9 +101,8 @@ public class TestDynamicInputFormat {
       fileSystem = cluster.getFileSystem();
       outputStream = fileSystem.create(new Path(path), true, 0);
       expectedFilePaths.add(fileSystem.listStatus(
-                                    new Path(path))[0].getPath().toString());
-    }
-    finally {
+          new Path(path))[0].getPath().toString());
+    } finally {
       IOUtils.cleanup(null, fileSystem, outputStream);
     }
   }
@@ -112,34 +117,34 @@ public class TestDynamicInputFormat {
     DistCpOptions options = getOptions();
     Configuration configuration = new Configuration();
     configuration.set("mapred.map.tasks",
-                      String.valueOf(options.getMaxMaps()));
-    CopyListing.getCopyListing(configuration, CREDENTIALS, options).buildListing(
-            new Path(cluster.getFileSystem().getUri().toString()
-                    +"/tmp/testDynInputFormat/fileList.seq"), options);
+      String.valueOf(options.getMaxMaps()));
+    CopyListing.getCopyListing(configuration, CREDENTIALS, options)
+    .buildListing(
+      new Path(cluster.getFileSystem().getUri().toString() +
+        "/tmp/testDynInputFormat/fileList.seq"), options);
 
     JobContext jobContext = new JobContextImpl(configuration, new JobID());
-    DynamicInputFormat<Text, CopyListingFileStatus> inputFormat =
-        new DynamicInputFormat<Text, CopyListingFileStatus>();
+    DynamicInputFormat<Text, CopyListingFileStatus> inputFormat = new DynamicInputFormat<Text, CopyListingFileStatus>();
     List<InputSplit> splits = inputFormat.getSplits(jobContext);
 
     int nFiles = 0;
     int taskId = 0;
 
     for (InputSplit split : splits) {
-      RecordReader<Text, CopyListingFileStatus> recordReader =
-           inputFormat.createRecordReader(split, null);
+      RecordReader<Text, CopyListingFileStatus> recordReader = inputFormat.createRecordReader(split, null);
       StubContext stubContext = new StubContext(jobContext.getConfiguration(),
-                                                recordReader, taskId);
-      final TaskAttemptContext taskAttemptContext
-         = stubContext.getContext();
-      
+        recordReader, taskId);
+      final TaskAttemptContext taskAttemptContext = stubContext.getContext();
+
       recordReader.initialize(splits.get(0), taskAttemptContext);
+
       float previousProgressValue = 0f;
       while (recordReader.nextKeyValue()) {
         CopyListingFileStatus fileStatus = recordReader.getCurrentValue();
         String source = fileStatus.getPath().toString();
         System.out.println(source);
         Assert.assertTrue(expectedFilePaths.contains(source));
+
         final float progress = recordReader.getProgress();
         Assert.assertTrue(progress >= previousProgressValue);
         Assert.assertTrue(progress >= 0.0f);
@@ -169,9 +174,9 @@ public class TestDynamicInputFormat {
     conf.setInt(DistCpConstants.CONF_LABEL_MIN_RECORDS_PER_CHUNK, -1);
     conf.setInt(DistCpConstants.CONF_LABEL_SPLIT_RATIO, -1);
     Assert.assertEquals(1,
-        DynamicInputFormat.getSplitRatio(1, 1000000000, conf));
+      DynamicInputFormat.getSplitRatio(1, 1000000000, conf));
     Assert.assertEquals(2,
-        DynamicInputFormat.getSplitRatio(11000000, 10, conf));
+      DynamicInputFormat.getSplitRatio(11000000, 10, conf));
     Assert.assertEquals(4, DynamicInputFormat.getSplitRatio(30, 700, conf));
     Assert.assertEquals(2, DynamicInputFormat.getSplitRatio(30, 200, conf));
 

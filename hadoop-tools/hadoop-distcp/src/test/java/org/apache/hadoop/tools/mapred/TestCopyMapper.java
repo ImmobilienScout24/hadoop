@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -55,6 +54,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+
 public class TestCopyMapper {
   private static final Log LOG = LogFactory.getLog(TestCopyMapper.class);
   private static List<Path> pathList = new ArrayList<Path>();
@@ -72,10 +72,7 @@ public class TestCopyMapper {
   @BeforeClass
   public static void setup() throws Exception {
     configuration = getConfigurationForCluster();
-    cluster = new MiniDFSCluster.Builder(configuration)
-                .numDataNodes(1)
-                .format(true)
-                .build();
+    cluster = new MiniDFSCluster.Builder(configuration).numDataNodes(1).format(true).build();
   }
 
   private static Configuration getConfigurationForCluster() throws IOException {
@@ -91,20 +88,19 @@ public class TestCopyMapper {
   private static Configuration getConfiguration() throws IOException {
     Configuration configuration = getConfigurationForCluster();
     final FileSystem fs = cluster.getFileSystem();
-    Path workPath = new Path(TARGET_PATH)
-            .makeQualified(fs.getUri(), fs.getWorkingDirectory());
+    Path workPath = new Path(TARGET_PATH).makeQualified(fs.getUri(), fs.getWorkingDirectory());
     configuration.set(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH,
-            workPath.toString());
+      workPath.toString());
     configuration.set(DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH,
-            workPath.toString());
+      workPath.toString());
     configuration.setBoolean(DistCpOptionSwitch.OVERWRITE.getConfigLabel(),
-            false);
+      false);
     configuration.setBoolean(DistCpOptionSwitch.SKIP_CRC.getConfigLabel(),
-            false);
+      false);
     configuration.setBoolean(DistCpOptionSwitch.SYNC_FOLDERS.getConfigLabel(),
-            true);
+      true);
     configuration.set(DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel(),
-            "br");
+      "br");
     return configuration;
   }
 
@@ -142,8 +138,7 @@ public class TestCopyMapper {
     touchFile(SOURCE_PATH + "/7/8/9");
   }
 
-  private static void createSourceDataWithDifferentChecksumType()
-      throws Exception {
+  private static void createSourceDataWithDifferentChecksumType() throws Exception {
     mkdirs(SOURCE_PATH + "/1");
     mkdirs(SOURCE_PATH + "/2");
     mkdirs(SOURCE_PATH + "/2/3/4");
@@ -160,7 +155,7 @@ public class TestCopyMapper {
   private static void mkdirs(String path) throws Exception {
     FileSystem fileSystem = cluster.getFileSystem();
     final Path qualifiedPath = new Path(path).makeQualified(fileSystem.getUri(),
-                                              fileSystem.getWorkingDirectory());
+      fileSystem.getWorkingDirectory());
     pathList.add(qualifiedPath);
     fileSystem.mkdirs(qualifiedPath);
   }
@@ -169,33 +164,35 @@ public class TestCopyMapper {
     touchFile(path, false, null);
   }
 
-  private static void touchFile(String path, ChecksumOpt checksumOpt)
-      throws Exception {
+  private static void touchFile(String path, ChecksumOpt checksumOpt) throws Exception {
     // create files with specific checksum opt and non-default block size
     touchFile(path, true, checksumOpt);
   }
 
   private static void touchFile(String path, boolean createMultipleBlocks,
-      ChecksumOpt checksumOpt) throws Exception {
+                                ChecksumOpt checksumOpt) throws Exception {
     FileSystem fs;
     DataOutputStream outputStream = null;
     try {
       fs = cluster.getFileSystem();
+
       final Path qualifiedPath = new Path(path).makeQualified(fs.getUri(),
-          fs.getWorkingDirectory());
-      final long blockSize = createMultipleBlocks ? NON_DEFAULT_BLOCK_SIZE : fs
-          .getDefaultBlockSize(qualifiedPath) * 2;
+        fs.getWorkingDirectory());
+      final long blockSize = createMultipleBlocks ? NON_DEFAULT_BLOCK_SIZE
+                                                  : (fs.getDefaultBlockSize(qualifiedPath) * 2);
       FsPermission permission = FsPermission.getFileDefault().applyUMask(
-          FsPermission.getUMask(fs.getConf()));
+        FsPermission.getUMask(fs.getConf()));
       outputStream = fs.create(qualifiedPath, permission,
-          EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE), 0,
-          (short) (fs.getDefaultReplication(qualifiedPath) * 2), blockSize,
-          null, checksumOpt);
+        EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE), 0, (short) (fs.getDefaultReplication(qualifiedPath) * 2),
+        blockSize,
+        null, checksumOpt);
+
       byte[] bytes = new byte[DEFAULT_FILE_SIZE];
       outputStream.write(bytes);
+
       long fileSize = DEFAULT_FILE_SIZE;
       if (createMultipleBlocks) {
-        while (fileSize < 2*blockSize) {
+        while (fileSize < (2 * blockSize)) {
           outputStream.write(bytes);
           outputStream.flush();
           fileSize += DEFAULT_FILE_SIZE;
@@ -207,8 +204,7 @@ public class TestCopyMapper {
       FileStatus fileStatus = fs.getFileStatus(qualifiedPath);
       System.out.println(fileStatus.getBlockSize());
       System.out.println(fileStatus.getReplication());
-    }
-    finally {
+    } finally {
       IOUtils.cleanup(null, outputStream);
     }
   }
@@ -220,6 +216,7 @@ public class TestCopyMapper {
     byte[] toAppend = new byte[length];
     Random random = new Random();
     random.nextBytes(toAppend);
+
     FSDataOutputStream out = cluster.getFileSystem().append(p);
     try {
       out.write(toAppend);
@@ -233,7 +230,7 @@ public class TestCopyMapper {
     testCopy(true);
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testRun() throws Exception {
     testCopy(false);
   }
@@ -241,33 +238,34 @@ public class TestCopyMapper {
   @Test
   public void testCopyWithAppend() throws Exception {
     final FileSystem fs = cluster.getFileSystem();
+
     // do the first distcp
     testCopy(false);
+
     // start appending data to source
     appendSourceData();
 
     // do the distcp again with -update and -append option
     CopyMapper copyMapper = new CopyMapper();
     StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-    Mapper<Text, CopyListingFileStatus, Text, Text>.Context context =
-        stubContext.getContext();
-    // Enable append 
+    Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
+
+    // Enable append
     context.getConfiguration().setBoolean(
-        DistCpOptionSwitch.APPEND.getConfigLabel(), true);
+      DistCpOptionSwitch.APPEND.getConfigLabel(), true);
     copyMapper.setup(context);
-    for (Path path: pathList) {
+    for (Path path : pathList) {
       copyMapper.map(new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
-              new CopyListingFileStatus(cluster.getFileSystem().getFileStatus(
-                  path)), context);
+        new CopyListingFileStatus(cluster.getFileSystem().getFileStatus(
+            path)), context);
     }
 
     verifyCopy(fs, false);
+
     // verify that we only copied new appended data
-    Assert.assertEquals(nFiles * DEFAULT_FILE_SIZE * 2, stubContext
-        .getReporter().getCounter(CopyMapper.Counter.BYTESCOPIED)
-        .getValue());
-    Assert.assertEquals(pathList.size(), stubContext.getReporter().
-        getCounter(CopyMapper.Counter.COPY).getValue());
+    Assert.assertEquals(nFiles * DEFAULT_FILE_SIZE * 2,
+      stubContext.getReporter().getCounter(CopyMapper.Counter.BYTESCOPIED).getValue());
+    Assert.assertEquals(pathList.size(), stubContext.getReporter().getCounter(CopyMapper.Counter.COPY).getValue());
   }
 
   private void testCopy(boolean preserveChecksum) throws Exception {
@@ -281,85 +279,78 @@ public class TestCopyMapper {
     FileSystem fs = cluster.getFileSystem();
     CopyMapper copyMapper = new CopyMapper();
     StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-    Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-            = stubContext.getContext();
+    Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
     Configuration configuration = context.getConfiguration();
-    EnumSet<DistCpOptions.FileAttribute> fileAttributes
-            = EnumSet.of(DistCpOptions.FileAttribute.REPLICATION);
+    EnumSet<DistCpOptions.FileAttribute> fileAttributes = EnumSet.of(DistCpOptions.FileAttribute.REPLICATION);
     if (preserveChecksum) {
       fileAttributes.add(DistCpOptions.FileAttribute.CHECKSUMTYPE);
     }
     configuration.set(DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel(),
-            DistCpUtils.packAttributes(fileAttributes));
+      DistCpUtils.packAttributes(fileAttributes));
 
     copyMapper.setup(context);
 
-    for (Path path: pathList) {
+    for (Path path : pathList) {
       copyMapper.map(
-          new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
-          new CopyListingFileStatus(fs.getFileStatus(path)), context);
+        new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
+        new CopyListingFileStatus(fs.getFileStatus(path)), context);
     }
 
     // Check that the maps worked.
     verifyCopy(fs, preserveChecksum);
-    Assert.assertEquals(pathList.size(), stubContext.getReporter()
-        .getCounter(CopyMapper.Counter.COPY).getValue());
+    Assert.assertEquals(pathList.size(), stubContext.getReporter().getCounter(CopyMapper.Counter.COPY).getValue());
     if (!preserveChecksum) {
-      Assert.assertEquals(nFiles * DEFAULT_FILE_SIZE, stubContext
-          .getReporter().getCounter(CopyMapper.Counter.BYTESCOPIED)
-          .getValue());
+      Assert.assertEquals(nFiles * DEFAULT_FILE_SIZE,
+        stubContext.getReporter().getCounter(CopyMapper.Counter.BYTESCOPIED).getValue());
     } else {
-      Assert.assertEquals(nFiles * NON_DEFAULT_BLOCK_SIZE * 2, stubContext
-          .getReporter().getCounter(CopyMapper.Counter.BYTESCOPIED)
-          .getValue());
+      Assert.assertEquals(nFiles * NON_DEFAULT_BLOCK_SIZE * 2,
+        stubContext.getReporter().getCounter(CopyMapper.Counter.BYTESCOPIED).getValue());
     }
 
     testCopyingExistingFiles(fs, copyMapper, context);
     for (Text value : stubContext.getWriter().values()) {
-      Assert.assertTrue(value.toString() + " is not skipped", value
-          .toString().startsWith("SKIP:"));
+      Assert.assertTrue(value.toString() + " is not skipped", value.toString().startsWith("SKIP:"));
     }
   }
 
-  private void verifyCopy(FileSystem fs, boolean preserveChecksum)
-      throws Exception {
+  private void verifyCopy(FileSystem fs, boolean preserveChecksum) throws Exception {
     for (Path path : pathList) {
       final Path targetPath = new Path(path.toString().replaceAll(SOURCE_PATH,
           TARGET_PATH));
       Assert.assertTrue(fs.exists(targetPath));
       Assert.assertTrue(fs.isFile(targetPath) == fs.isFile(path));
+
       FileStatus sourceStatus = fs.getFileStatus(path);
       FileStatus targetStatus = fs.getFileStatus(targetPath);
       Assert.assertEquals(sourceStatus.getReplication(),
-          targetStatus.getReplication());
+        targetStatus.getReplication());
       if (preserveChecksum) {
         Assert.assertEquals(sourceStatus.getBlockSize(),
-            targetStatus.getBlockSize());
+          targetStatus.getBlockSize());
       }
-      Assert.assertTrue(!fs.isFile(targetPath)
-          || fs.getFileChecksum(targetPath).equals(fs.getFileChecksum(path)));
+      Assert.assertTrue(!fs.isFile(targetPath) ||
+        fs.getFileChecksum(targetPath).equals(fs.getFileChecksum(path)));
     }
   }
 
   private void testCopyingExistingFiles(FileSystem fs, CopyMapper copyMapper,
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context) {
+                                        Mapper<Text, CopyListingFileStatus, Text, Text>.Context context) {
     try {
       for (Path path : pathList) {
         copyMapper.map(new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
-                new CopyListingFileStatus(fs.getFileStatus(path)), context);
+          new CopyListingFileStatus(fs.getFileStatus(path)), context);
       }
 
       Assert.assertEquals(nFiles,
-              context.getCounter(CopyMapper.Counter.SKIP).getValue());
-    }
-    catch (Exception exception) {
+        context.getCounter(CopyMapper.Counter.SKIP).getValue());
+    } catch (Exception exception) {
       Assert.assertTrue("Caught unexpected exception:" + exception.getMessage(),
-              false);
+        false);
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testMakeDirFailure() {
     try {
       deleteState();
@@ -368,32 +359,30 @@ public class TestCopyMapper {
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
       Configuration configuration = context.getConfiguration();
-      String workPath = new Path("hftp://localhost:1234/*/*/*/?/")
-              .makeQualified(fs.getUri(), fs.getWorkingDirectory()).toString();
+      String workPath = new Path("hftp://localhost:1234/*/*/*/?/").makeQualified(fs.getUri(), fs.getWorkingDirectory())
+        .toString();
       configuration.set(DistCpConstants.CONF_LABEL_TARGET_WORK_PATH,
-              workPath);
+        workPath);
       copyMapper.setup(context);
 
       copyMapper.map(new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), pathList.get(0))),
-              new CopyListingFileStatus(fs.getFileStatus(pathList.get(0))), context);
+        new CopyListingFileStatus(fs.getFileStatus(pathList.get(0))), context);
 
       Assert.assertTrue("There should have been an exception.", false);
-    }
-    catch (Exception ignore) {
+    } catch (Exception ignore) {
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testIgnoreFailures() {
     doTestIgnoreFailures(true);
     doTestIgnoreFailures(false);
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testDirToFile() {
     try {
       deleteState();
@@ -402,17 +391,16 @@ public class TestCopyMapper {
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
       mkdirs(SOURCE_PATH + "/src/file");
       touchFile(TARGET_PATH + "/src/file");
       try {
         copyMapper.setup(context);
         copyMapper.map(new Text("/src/file"),
-            new CopyListingFileStatus(fs.getFileStatus(
+          new CopyListingFileStatus(fs.getFileStatus(
               new Path(SOURCE_PATH + "/src/file"))),
-            context);
+          context);
       } catch (IOException e) {
         Assert.assertTrue(e.getMessage().startsWith("Can't replace"));
       }
@@ -422,7 +410,7 @@ public class TestCopyMapper {
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testPreserve() {
     try {
       deleteState();
@@ -432,71 +420,70 @@ public class TestCopyMapper {
 
       final CopyMapper copyMapper = new CopyMapper();
 
-      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context =
-        tmpUser.doAs(
-          new PrivilegedAction<Mapper<Text, CopyListingFileStatus, Text, Text>.Context>() {
-            @Override
-            public Mapper<Text, CopyListingFileStatus, Text, Text>.Context run() {
-              try {
-                StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-                return stubContext.getContext();
-              } catch (Exception e) {
-                LOG.error("Exception encountered ", e);
-                throw new RuntimeException(e);
-              }
+      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = tmpUser.doAs(
+        new PrivilegedAction<Mapper<Text, CopyListingFileStatus, Text, Text>.Context>() {
+          @Override
+          public Mapper<Text, CopyListingFileStatus, Text, Text>.Context run() {
+            try {
+              StubContext stubContext = new StubContext(getConfiguration(), null, 0);
+              return stubContext.getContext();
+            } catch (Exception e) {
+              LOG.error("Exception encountered ", e);
+              throw new RuntimeException(e);
             }
-          });
+          }
+        });
 
-      EnumSet<DistCpOptions.FileAttribute> preserveStatus =
-          EnumSet.allOf(DistCpOptions.FileAttribute.class);
+      EnumSet<DistCpOptions.FileAttribute> preserveStatus = EnumSet.allOf(DistCpOptions.FileAttribute.class);
       preserveStatus.remove(DistCpOptions.FileAttribute.ACL);
       preserveStatus.remove(DistCpOptions.FileAttribute.XATTR);
 
-      context.getConfiguration().set(DistCpConstants.CONF_LABEL_PRESERVE_STATUS,
+      context.getConfiguration()
+      .set(DistCpConstants.CONF_LABEL_PRESERVE_STATUS,
         DistCpUtils.packAttributes(preserveStatus));
 
       touchFile(SOURCE_PATH + "/src/file");
       mkdirs(TARGET_PATH);
-      cluster.getFileSystem().setPermission(new Path(TARGET_PATH), new FsPermission((short)511));
+      cluster.getFileSystem().setPermission(new Path(TARGET_PATH), new FsPermission((short) 511));
 
       final FileSystem tmpFS = tmpUser.doAs(new PrivilegedAction<FileSystem>() {
-        @Override
-        public FileSystem run() {
-          try {
-            return FileSystem.get(configuration);
-          } catch (IOException e) {
-            LOG.error("Exception encountered ", e);
-            Assert.fail("Test failed: " + e.getMessage());
-            throw new RuntimeException("Test ought to fail here");
+          @Override
+          public FileSystem run() {
+            try {
+              return FileSystem.get(configuration);
+            } catch (IOException e) {
+              LOG.error("Exception encountered ", e);
+              Assert.fail("Test failed: " + e.getMessage());
+              throw new RuntimeException("Test ought to fail here");
+            }
           }
-        }
-      });
+        });
 
       tmpUser.doAs(new PrivilegedAction<Integer>() {
-        @Override
-        public Integer run() {
-          try {
-            copyMapper.setup(context);
-            copyMapper.map(new Text("/src/file"),
+          @Override
+          public Integer run() {
+            try {
+              copyMapper.setup(context);
+              copyMapper.map(new Text("/src/file"),
                 new CopyListingFileStatus(tmpFS.getFileStatus(
-                  new Path(SOURCE_PATH + "/src/file"))),
+                    new Path(SOURCE_PATH + "/src/file"))),
                 context);
-            Assert.fail("Expected copy to fail");
-          } catch (AccessControlException e) {
-            Assert.assertTrue("Got exception: " + e.getMessage(), true);
-          } catch (Exception e) {
-            throw new RuntimeException(e);
+              Assert.fail("Expected copy to fail");
+            } catch (AccessControlException e) {
+              Assert.assertTrue("Got exception: " + e.getMessage(), true);
+            } catch (Exception e) {
+              throw new RuntimeException(e);
+            }
+            return null;
           }
-          return null;
-        }
-      });
+        });
     } catch (Exception e) {
       LOG.error("Exception encountered ", e);
       Assert.fail("Test failed: " + e.getMessage());
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testCopyReadableFiles() {
     try {
       deleteState();
@@ -506,62 +493,62 @@ public class TestCopyMapper {
 
       final CopyMapper copyMapper = new CopyMapper();
 
-      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context =
-        tmpUser.doAs(
-          new PrivilegedAction<Mapper<Text, CopyListingFileStatus, Text, Text>.Context>() {
-            @Override
-            public Mapper<Text, CopyListingFileStatus, Text, Text>.Context run() {
-              try {
-                StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-                return stubContext.getContext();
-              } catch (Exception e) {
-                LOG.error("Exception encountered ", e);
-                throw new RuntimeException(e);
-              }
+      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = tmpUser.doAs(
+        new PrivilegedAction<Mapper<Text, CopyListingFileStatus, Text, Text>.Context>() {
+          @Override
+          public Mapper<Text, CopyListingFileStatus, Text, Text>.Context run() {
+            try {
+              StubContext stubContext = new StubContext(getConfiguration(), null, 0);
+              return stubContext.getContext();
+            } catch (Exception e) {
+              LOG.error("Exception encountered ", e);
+              throw new RuntimeException(e);
             }
-          });
+          }
+        });
 
       touchFile(SOURCE_PATH + "/src/file");
       mkdirs(TARGET_PATH);
-      cluster.getFileSystem().setPermission(new Path(SOURCE_PATH + "/src/file"),
-          new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
-      cluster.getFileSystem().setPermission(new Path(TARGET_PATH), new FsPermission((short)511));
+      cluster.getFileSystem()
+      .setPermission(new Path(SOURCE_PATH + "/src/file"),
+        new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
+      cluster.getFileSystem().setPermission(new Path(TARGET_PATH), new FsPermission((short) 511));
 
       final FileSystem tmpFS = tmpUser.doAs(new PrivilegedAction<FileSystem>() {
-        @Override
-        public FileSystem run() {
-          try {
-            return FileSystem.get(configuration);
-          } catch (IOException e) {
-            LOG.error("Exception encountered ", e);
-            Assert.fail("Test failed: " + e.getMessage());
-            throw new RuntimeException("Test ought to fail here");
+          @Override
+          public FileSystem run() {
+            try {
+              return FileSystem.get(configuration);
+            } catch (IOException e) {
+              LOG.error("Exception encountered ", e);
+              Assert.fail("Test failed: " + e.getMessage());
+              throw new RuntimeException("Test ought to fail here");
+            }
           }
-        }
-      });
+        });
 
       tmpUser.doAs(new PrivilegedAction<Integer>() {
-        @Override
-        public Integer run() {
-          try {
-            copyMapper.setup(context);
-            copyMapper.map(new Text("/src/file"),
+          @Override
+          public Integer run() {
+            try {
+              copyMapper.setup(context);
+              copyMapper.map(new Text("/src/file"),
                 new CopyListingFileStatus(tmpFS.getFileStatus(
-                  new Path(SOURCE_PATH + "/src/file"))),
+                    new Path(SOURCE_PATH + "/src/file"))),
                 context);
-          } catch (Exception e) {
-            throw new RuntimeException(e);
+            } catch (Exception e) {
+              throw new RuntimeException(e);
+            }
+            return null;
           }
-          return null;
-        }
-      });
+        });
     } catch (Exception e) {
       LOG.error("Exception encountered ", e);
       Assert.fail("Test failed: " + e.getMessage());
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testSkipCopyNoPerms() {
     try {
       deleteState();
@@ -571,76 +558,75 @@ public class TestCopyMapper {
 
       final CopyMapper copyMapper = new CopyMapper();
 
-      final StubContext stubContext =  tmpUser.
-          doAs(new PrivilegedAction<StubContext>() {
-        @Override
-        public StubContext run() {
-          try {
-            return new StubContext(getConfiguration(), null, 0);
-          } catch (Exception e) {
-            LOG.error("Exception encountered ", e);
-            throw new RuntimeException(e);
+      final StubContext stubContext = tmpUser.doAs(new PrivilegedAction<StubContext>() {
+          @Override
+          public StubContext run() {
+            try {
+              return new StubContext(getConfiguration(), null, 0);
+            } catch (Exception e) {
+              LOG.error("Exception encountered ", e);
+              throw new RuntimeException(e);
+            }
           }
-        }
-      });
+        });
 
-      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context =
-        stubContext.getContext();
-      EnumSet<DistCpOptions.FileAttribute> preserveStatus =
-          EnumSet.allOf(DistCpOptions.FileAttribute.class);
+      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
+      EnumSet<DistCpOptions.FileAttribute> preserveStatus = EnumSet.allOf(DistCpOptions.FileAttribute.class);
       preserveStatus.remove(DistCpOptions.FileAttribute.ACL);
       preserveStatus.remove(DistCpOptions.FileAttribute.XATTR);
       preserveStatus.remove(DistCpOptions.FileAttribute.TIMES);
 
-      context.getConfiguration().set(DistCpConstants.CONF_LABEL_PRESERVE_STATUS,
+      context.getConfiguration()
+      .set(DistCpConstants.CONF_LABEL_PRESERVE_STATUS,
         DistCpUtils.packAttributes(preserveStatus));
 
       touchFile(SOURCE_PATH + "/src/file");
       touchFile(TARGET_PATH + "/src/file");
-      cluster.getFileSystem().setPermission(new Path(SOURCE_PATH + "/src/file"),
-          new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
-      cluster.getFileSystem().setPermission(new Path(TARGET_PATH + "/src/file"),
-          new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
+      cluster.getFileSystem()
+      .setPermission(new Path(SOURCE_PATH + "/src/file"),
+        new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
+      cluster.getFileSystem()
+      .setPermission(new Path(TARGET_PATH + "/src/file"),
+        new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
 
       final FileSystem tmpFS = tmpUser.doAs(new PrivilegedAction<FileSystem>() {
-        @Override
-        public FileSystem run() {
-          try {
-            return FileSystem.get(configuration);
-          } catch (IOException e) {
-            LOG.error("Exception encountered ", e);
-            Assert.fail("Test failed: " + e.getMessage());
-            throw new RuntimeException("Test ought to fail here");
+          @Override
+          public FileSystem run() {
+            try {
+              return FileSystem.get(configuration);
+            } catch (IOException e) {
+              LOG.error("Exception encountered ", e);
+              Assert.fail("Test failed: " + e.getMessage());
+              throw new RuntimeException("Test ought to fail here");
+            }
           }
-        }
-      });
+        });
 
       tmpUser.doAs(new PrivilegedAction<Integer>() {
-        @Override
-        public Integer run() {
-          try {
-            copyMapper.setup(context);
-            copyMapper.map(new Text("/src/file"),
+          @Override
+          public Integer run() {
+            try {
+              copyMapper.setup(context);
+              copyMapper.map(new Text("/src/file"),
                 new CopyListingFileStatus(tmpFS.getFileStatus(
-                  new Path(SOURCE_PATH + "/src/file"))),
+                    new Path(SOURCE_PATH + "/src/file"))),
                 context);
-            Assert.assertEquals(stubContext.getWriter().values().size(), 1);
-            Assert.assertTrue(stubContext.getWriter().values().get(0).toString().startsWith("SKIP"));
-            Assert.assertTrue(stubContext.getWriter().values().get(0).toString().
-                contains(SOURCE_PATH + "/src/file"));
-          } catch (Exception e) {
-            throw new RuntimeException(e);
+              Assert.assertEquals(stubContext.getWriter().values().size(), 1);
+              Assert.assertTrue(stubContext.getWriter().values().get(0).toString().startsWith("SKIP"));
+              Assert.assertTrue(stubContext.getWriter().values().get(0).toString().contains(SOURCE_PATH + "/src/file"));
+            } catch (Exception e) {
+              throw new RuntimeException(e);
+            }
+            return null;
           }
-          return null;
-        }
-      });
+        });
     } catch (Exception e) {
       LOG.error("Exception encountered ", e);
       Assert.fail("Test failed: " + e.getMessage());
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testFailCopyWithAccessControlException() {
     try {
       deleteState();
@@ -650,83 +636,84 @@ public class TestCopyMapper {
 
       final CopyMapper copyMapper = new CopyMapper();
 
-      final StubContext stubContext =  tmpUser.
-          doAs(new PrivilegedAction<StubContext>() {
-        @Override
-        public StubContext run() {
-          try {
-            return new StubContext(getConfiguration(), null, 0);
-          } catch (Exception e) {
-            LOG.error("Exception encountered ", e);
-            throw new RuntimeException(e);
-          }
-        }
-      });
-
-      EnumSet<DistCpOptions.FileAttribute> preserveStatus =
-          EnumSet.allOf(DistCpOptions.FileAttribute.class);
-      preserveStatus.remove(DistCpOptions.FileAttribute.ACL);
-      preserveStatus.remove(DistCpOptions.FileAttribute.XATTR);
-
-      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
-
-      context.getConfiguration().set(DistCpConstants.CONF_LABEL_PRESERVE_STATUS,
-        DistCpUtils.packAttributes(preserveStatus));
-
-      touchFile(SOURCE_PATH + "/src/file");
-      OutputStream out = cluster.getFileSystem().create(new Path(TARGET_PATH + "/src/file"));
-      out.write("hello world".getBytes());
-      out.close();
-      cluster.getFileSystem().setPermission(new Path(SOURCE_PATH + "/src/file"),
-          new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
-      cluster.getFileSystem().setPermission(new Path(TARGET_PATH + "/src/file"),
-          new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
-
-      final FileSystem tmpFS = tmpUser.doAs(new PrivilegedAction<FileSystem>() {
-        @Override
-        public FileSystem run() {
-          try {
-            return FileSystem.get(configuration);
-          } catch (IOException e) {
-            LOG.error("Exception encountered ", e);
-            Assert.fail("Test failed: " + e.getMessage());
-            throw new RuntimeException("Test ought to fail here");
-          }
-        }
-      });
-
-      tmpUser.doAs(new PrivilegedAction<Integer>() {
-        @Override
-        public Integer run() {
-          try {
-            copyMapper.setup(context);
-            copyMapper.map(new Text("/src/file"),
-                new CopyListingFileStatus(tmpFS.getFileStatus(
-                  new Path(SOURCE_PATH + "/src/file"))),
-                context);
-            Assert.fail("Didn't expect the file to be copied");
-          } catch (AccessControlException ignore) {
-          } catch (Exception e) {
-            // We want to make sure the underlying cause of the exception is
-            // due to permissions error. The exception we're interested in is
-            // wrapped twice - once in RetriableCommand and again in CopyMapper
-            // itself.
-            if (e.getCause() == null || e.getCause().getCause() == null ||
-                !(e.getCause().getCause() instanceof AccessControlException)) {
+      final StubContext stubContext = tmpUser.doAs(new PrivilegedAction<StubContext>() {
+          @Override
+          public StubContext run() {
+            try {
+              return new StubContext(getConfiguration(), null, 0);
+            } catch (Exception e) {
+              LOG.error("Exception encountered ", e);
               throw new RuntimeException(e);
             }
           }
-          return null;
-        }
-      });
+        });
+
+      EnumSet<DistCpOptions.FileAttribute> preserveStatus = EnumSet.allOf(DistCpOptions.FileAttribute.class);
+      preserveStatus.remove(DistCpOptions.FileAttribute.ACL);
+      preserveStatus.remove(DistCpOptions.FileAttribute.XATTR);
+
+      final Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
+
+      context.getConfiguration()
+      .set(DistCpConstants.CONF_LABEL_PRESERVE_STATUS,
+        DistCpUtils.packAttributes(preserveStatus));
+
+      touchFile(SOURCE_PATH + "/src/file");
+
+      OutputStream out = cluster.getFileSystem().create(new Path(TARGET_PATH + "/src/file"));
+      out.write("hello world".getBytes());
+      out.close();
+      cluster.getFileSystem()
+      .setPermission(new Path(SOURCE_PATH + "/src/file"),
+        new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
+      cluster.getFileSystem()
+      .setPermission(new Path(TARGET_PATH + "/src/file"),
+        new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
+
+      final FileSystem tmpFS = tmpUser.doAs(new PrivilegedAction<FileSystem>() {
+          @Override
+          public FileSystem run() {
+            try {
+              return FileSystem.get(configuration);
+            } catch (IOException e) {
+              LOG.error("Exception encountered ", e);
+              Assert.fail("Test failed: " + e.getMessage());
+              throw new RuntimeException("Test ought to fail here");
+            }
+          }
+        });
+
+      tmpUser.doAs(new PrivilegedAction<Integer>() {
+          @Override
+          public Integer run() {
+            try {
+              copyMapper.setup(context);
+              copyMapper.map(new Text("/src/file"),
+                new CopyListingFileStatus(tmpFS.getFileStatus(
+                    new Path(SOURCE_PATH + "/src/file"))),
+                context);
+              Assert.fail("Didn't expect the file to be copied");
+            } catch (AccessControlException ignore) {
+            } catch (Exception e) {
+              // We want to make sure the underlying cause of the exception is
+              // due to permissions error. The exception we're interested in is
+              // wrapped twice - once in RetriableCommand and again in CopyMapper
+              // itself.
+              if ((e.getCause() == null) || (e.getCause().getCause() == null) ||
+                  !(e.getCause().getCause() instanceof AccessControlException)) {
+                throw new RuntimeException(e);
+              }
+            }
+            return null;
+          }
+        });
     } catch (Exception e) {
       LOG.error("Exception encountered ", e);
       Assert.fail("Test failed: " + e.getMessage());
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testFileToDir() {
     try {
       deleteState();
@@ -735,17 +722,16 @@ public class TestCopyMapper {
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
       touchFile(SOURCE_PATH + "/src/file");
       mkdirs(TARGET_PATH + "/src/file");
       try {
         copyMapper.setup(context);
         copyMapper.map(new Text("/src/file"),
-            new CopyListingFileStatus(fs.getFileStatus(
+          new CopyListingFileStatus(fs.getFileStatus(
               new Path(SOURCE_PATH + "/src/file"))),
-            context);
+          context);
       } catch (IOException e) {
         Assert.assertTrue(e.getMessage().startsWith("Can't replace"));
       }
@@ -763,16 +749,15 @@ public class TestCopyMapper {
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
       Configuration configuration = context.getConfiguration();
       configuration.setBoolean(
-              DistCpOptionSwitch.IGNORE_FAILURES.getConfigLabel(),ignoreFailures);
+        DistCpOptionSwitch.IGNORE_FAILURES.getConfigLabel(), ignoreFailures);
       configuration.setBoolean(DistCpOptionSwitch.OVERWRITE.getConfigLabel(),
-              true);
+        true);
       configuration.setBoolean(DistCpOptionSwitch.SKIP_CRC.getConfigLabel(),
-              true);
+        true);
       copyMapper.setup(context);
 
       for (Path path : pathList) {
@@ -780,7 +765,7 @@ public class TestCopyMapper {
         if (!fileStatus.isDirectory()) {
           fs.delete(path, true);
           copyMapper.map(new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
-                  new CopyListingFileStatus(fileStatus), context);
+            new CopyListingFileStatus(fileStatus), context);
         }
       }
       if (ignoreFailures) {
@@ -789,10 +774,8 @@ public class TestCopyMapper {
         }
       }
       Assert.assertTrue("There should have been an exception.", ignoreFailures);
-    }
-    catch (Exception e) {
-      Assert.assertTrue("Unexpected exception: " + e.getMessage(),
-              !ignoreFailures);
+    } catch (Exception e) {
+      Assert.assertTrue("Unexpected exception: " + e.getMessage(), !ignoreFailures);
       e.printStackTrace();
     }
   }
@@ -804,138 +787,131 @@ public class TestCopyMapper {
     cluster.getFileSystem().delete(new Path(TARGET_PATH), true);
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testPreserveBlockSizeAndReplication() {
     testPreserveBlockSizeAndReplicationImpl(true);
     testPreserveBlockSizeAndReplicationImpl(false);
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testCopyFailOnBlockSizeDifference() {
     try {
-
       deleteState();
       createSourceDataWithDifferentBlockSize();
 
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-          = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
       Configuration configuration = context.getConfiguration();
-      EnumSet<DistCpOptions.FileAttribute> fileAttributes
-          = EnumSet.noneOf(DistCpOptions.FileAttribute.class);
+      EnumSet<DistCpOptions.FileAttribute> fileAttributes = EnumSet.noneOf(DistCpOptions.FileAttribute.class);
       configuration.set(DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel(),
-          DistCpUtils.packAttributes(fileAttributes));
+        DistCpUtils.packAttributes(fileAttributes));
 
       copyMapper.setup(context);
 
       for (Path path : pathList) {
         final FileStatus fileStatus = fs.getFileStatus(path);
         copyMapper.map(new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
-            new CopyListingFileStatus(fileStatus), context);
+          new CopyListingFileStatus(fileStatus), context);
       }
 
       Assert.fail("Copy should have failed because of block-size difference.");
-    }
-    catch (Exception exception) {
+    } catch (Exception exception) {
       // Check that the exception suggests the use of -pb/-skipCrc.
-      Assert.assertTrue("Failure exception should have suggested the use of -pb.", exception.getCause().getCause().getMessage().contains("pb"));
-      Assert.assertTrue("Failure exception should have suggested the use of -skipCrc.", exception.getCause().getCause().getMessage().contains("skipCrc"));
+      Assert.assertTrue("Failure exception should have suggested the use of -pb.",
+        exception.getCause().getCause().getMessage().contains("pb"));
+      Assert.assertTrue("Failure exception should have suggested the use of -skipCrc.",
+        exception.getCause().getCause().getMessage().contains("skipCrc"));
     }
   }
 
-  private void testPreserveBlockSizeAndReplicationImpl(boolean preserve){
+  private void testPreserveBlockSizeAndReplicationImpl(boolean preserve) {
     try {
-
       deleteState();
       createSourceData();
 
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
       Configuration configuration = context.getConfiguration();
-      EnumSet<DistCpOptions.FileAttribute> fileAttributes
-              = EnumSet.noneOf(DistCpOptions.FileAttribute.class);
+      EnumSet<DistCpOptions.FileAttribute> fileAttributes = EnumSet.noneOf(DistCpOptions.FileAttribute.class);
       if (preserve) {
         fileAttributes.add(DistCpOptions.FileAttribute.BLOCKSIZE);
         fileAttributes.add(DistCpOptions.FileAttribute.REPLICATION);
       }
       configuration.set(DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel(),
-              DistCpUtils.packAttributes(fileAttributes));
+        DistCpUtils.packAttributes(fileAttributes));
 
       copyMapper.setup(context);
 
       for (Path path : pathList) {
         final FileStatus fileStatus = fs.getFileStatus(path);
         copyMapper.map(new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
-                new CopyListingFileStatus(fileStatus), context);
+          new CopyListingFileStatus(fileStatus), context);
       }
 
       // Check that the block-size/replication aren't preserved.
       for (Path path : pathList) {
-        final Path targetPath = new Path(path.toString()
-                .replaceAll(SOURCE_PATH, TARGET_PATH));
+        final Path targetPath = new Path(path.toString().replaceAll(SOURCE_PATH, TARGET_PATH));
         final FileStatus source = fs.getFileStatus(path);
         final FileStatus target = fs.getFileStatus(targetPath);
-        if (!source.isDirectory() ) {
+        if (!source.isDirectory()) {
           Assert.assertTrue(preserve ||
-                  source.getBlockSize() != target.getBlockSize());
+            (source.getBlockSize() != target.getBlockSize()));
           Assert.assertTrue(preserve ||
-                  source.getReplication() != target.getReplication());
+            (source.getReplication() != target.getReplication()));
           Assert.assertTrue(!preserve ||
-                  source.getBlockSize() == target.getBlockSize());
+            (source.getBlockSize() == target.getBlockSize()));
           Assert.assertTrue(!preserve ||
-                  source.getReplication() == target.getReplication());
+            (source.getReplication() == target.getReplication()));
         }
       }
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       Assert.assertTrue("Unexpected exception: " + e.getMessage(), false);
       e.printStackTrace();
     }
   }
 
-  private static void changeUserGroup(String user, String group)
-          throws IOException {
+  private static void changeUserGroup(String user, String group) throws IOException {
     FileSystem fs = cluster.getFileSystem();
     FsPermission changedPermission = new FsPermission(
-            FsAction.ALL, FsAction.ALL, FsAction.ALL
-    );
-    for (Path path : pathList)
+      FsAction.ALL, FsAction.ALL, FsAction.ALL);
+    for (Path path : pathList) {
       if (fs.isFile(path)) {
         fs.setOwner(path, user, group);
         fs.setPermission(path, changedPermission);
       }
+    }
   }
 
   /**
    * If a single file is being copied to a location where the file (of the same
    * name) already exists, then the file shouldn't be skipped.
    */
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testSingleFileCopy() {
     try {
       deleteState();
       touchFile(SOURCE_PATH + "/1");
+
       Path sourceFilePath = pathList.get(0);
       Path targetFilePath = new Path(sourceFilePath.toString().replaceAll(
-              SOURCE_PATH, TARGET_PATH));
+        SOURCE_PATH, TARGET_PATH));
       touchFile(targetFilePath.toString());
 
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
-      context.getConfiguration().set(
-              DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH,
-              targetFilePath.getParent().toString()); // Parent directory.
+      context.getConfiguration()
+      .set(
+        DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH,
+        targetFilePath.getParent().toString()); // Parent directory.
       copyMapper.setup(context);
 
       final CopyListingFileStatus sourceFileStatus = new CopyListingFileStatus(
@@ -943,20 +919,24 @@ public class TestCopyMapper {
 
       long before = fs.getFileStatus(targetFilePath).getModificationTime();
       copyMapper.map(new Text(DistCpUtils.getRelativePath(
-              new Path(SOURCE_PATH), sourceFilePath)), sourceFileStatus, context);
+            new Path(SOURCE_PATH), sourceFilePath)), sourceFileStatus, context);
+
       long after = fs.getFileStatus(targetFilePath).getModificationTime();
 
       Assert.assertTrue("File should have been skipped", before == after);
 
       context.getConfiguration().set(
-              DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH,
-              targetFilePath.toString()); // Specify the file path.
+        DistCpConstants.CONF_LABEL_TARGET_FINAL_PATH,
+        targetFilePath.toString()); // Specify the file path.
       copyMapper.setup(context);
 
       before = fs.getFileStatus(targetFilePath).getModificationTime();
-      try { Thread.sleep(2); } catch (Throwable ignore) {}
+      try {
+        Thread.sleep(2);
+      } catch (Throwable ignore) {
+      }
       copyMapper.map(new Text(DistCpUtils.getRelativePath(
-              new Path(SOURCE_PATH), sourceFilePath)), sourceFileStatus, context);
+            new Path(SOURCE_PATH), sourceFilePath)), sourceFileStatus, context);
       after = fs.getFileStatus(targetFilePath).getModificationTime();
 
       Assert.assertTrue("File should have been overwritten.", before < after);
@@ -967,15 +947,14 @@ public class TestCopyMapper {
     }
   }
 
-  @Test(timeout=40000)
+  @Test(timeout = 40000)
   public void testPreserveUserGroup() {
     testPreserveUserGroupImpl(true);
     testPreserveUserGroupImpl(false);
   }
 
-  private void testPreserveUserGroupImpl(boolean preserve){
+  private void testPreserveUserGroupImpl(boolean preserve) {
     try {
-
       deleteState();
       createSourceData();
       changeUserGroup("Michael", "Corleone");
@@ -983,12 +962,10 @@ public class TestCopyMapper {
       FileSystem fs = cluster.getFileSystem();
       CopyMapper copyMapper = new CopyMapper();
       StubContext stubContext = new StubContext(getConfiguration(), null, 0);
-      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context
-              = stubContext.getContext();
+      Mapper<Text, CopyListingFileStatus, Text, Text>.Context context = stubContext.getContext();
 
       Configuration configuration = context.getConfiguration();
-      EnumSet<DistCpOptions.FileAttribute> fileAttributes
-              = EnumSet.noneOf(DistCpOptions.FileAttribute.class);
+      EnumSet<DistCpOptions.FileAttribute> fileAttributes = EnumSet.noneOf(DistCpOptions.FileAttribute.class);
       if (preserve) {
         fileAttributes.add(DistCpOptions.FileAttribute.USER);
         fileAttributes.add(DistCpOptions.FileAttribute.GROUP);
@@ -996,35 +973,33 @@ public class TestCopyMapper {
       }
 
       configuration.set(DistCpOptionSwitch.PRESERVE_STATUS.getConfigLabel(),
-              DistCpUtils.packAttributes(fileAttributes));
+        DistCpUtils.packAttributes(fileAttributes));
       copyMapper.setup(context);
 
       for (Path path : pathList) {
         final FileStatus fileStatus = fs.getFileStatus(path);
         copyMapper.map(new Text(DistCpUtils.getRelativePath(new Path(SOURCE_PATH), path)),
-                new CopyListingFileStatus(fileStatus), context);
+          new CopyListingFileStatus(fileStatus), context);
       }
 
       // Check that the user/group attributes are preserved
       // (only) as necessary.
       for (Path path : pathList) {
-        final Path targetPath = new Path(path.toString()
-                .replaceAll(SOURCE_PATH, TARGET_PATH));
+        final Path targetPath = new Path(path.toString().replaceAll(SOURCE_PATH, TARGET_PATH));
         final FileStatus source = fs.getFileStatus(path);
         final FileStatus target = fs.getFileStatus(targetPath);
         if (!source.isDirectory()) {
           Assert.assertTrue(!preserve || source.getOwner().equals(target.getOwner()));
           Assert.assertTrue(!preserve || source.getGroup().equals(target.getGroup()));
           Assert.assertTrue(!preserve || source.getPermission().equals(target.getPermission()));
-          Assert.assertTrue( preserve || !source.getOwner().equals(target.getOwner()));
-          Assert.assertTrue( preserve || !source.getGroup().equals(target.getGroup()));
-          Assert.assertTrue( preserve || !source.getPermission().equals(target.getPermission()));
+          Assert.assertTrue(preserve || !source.getOwner().equals(target.getOwner()));
+          Assert.assertTrue(preserve || !source.getGroup().equals(target.getGroup()));
+          Assert.assertTrue(preserve || !source.getPermission().equals(target.getPermission()));
           Assert.assertTrue(source.isDirectory() ||
-                  source.getReplication() != target.getReplication());
+            (source.getReplication() != target.getReplication()));
         }
       }
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       Assert.assertTrue("Unexpected exception: " + e.getMessage(), false);
       e.printStackTrace();
     }

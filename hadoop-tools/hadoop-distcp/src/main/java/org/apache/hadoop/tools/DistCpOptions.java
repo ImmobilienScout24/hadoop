@@ -598,7 +598,7 @@ public class DistCpOptions {
       ", sourcePaths=" + sourcePaths +
       ", targetPath=" + targetPath +
       ", targetPathExists=" + targetPathExists +
-      ", listMissing=" + listMissing +
+      ", listMissing=" + listMissingFile +
       ", preserveRawXattrs=" + preserveRawXattrs +
       '}';
   }
